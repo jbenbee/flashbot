@@ -1,0 +1,32 @@
+{
+    "<user 1 chat id>": {
+    "language": "italian",
+    "max_tokens": 600,
+    "exercise_types": ["words", "reading"],
+    "word_groups": ["user_defined", "B1-B2"],
+    "reading_topics": ["Advanced dialogues on everyday topics", "Beginner dialogues on everyday topics"],
+    "schedule": {
+      "words": {
+        "weekday": {"10:00": "learn", "12:00": "test", "14:00": "test", "16:00": "learn", "18:00": "test", "20:00": "test"},
+        "weekend": {"10:00": "learn", "13:00": "test", "16:00": "test", "19:00": "learn", "21:00": "test"}
+      },
+      "reading": {
+        "weekday": {"20:30": ["Beginner dialogues on everyday topics"]},
+        "weekend": {"10:00": ["Advanced dialogues on everyday topics"]}
+      }
+    }
+  },
+  "<user 2 chat id>": {
+    "language": "spanish",
+    "max_tokens": 600,
+    "exercise_types": ["words"],
+    "word_groups": ["user_defined", "common verbs"],
+    "reading_topics": [],
+    "schedule": {
+      "words": {
+        "weekday": {"11:00": "learn", "14:00": "test", "17:00": "test", "20:00": "learn", "22:00": "test"},
+        "weekend": {"11:00": "learn", "14:00": "test", "17:00": "test", "20:00": "learn", "22:00": "test"}
+      }
+    }
+  }
+}

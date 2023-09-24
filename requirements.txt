@@ -1,0 +1,6 @@
+requests
+flask
+openai
+pytest
+joblib
+
