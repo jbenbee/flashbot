@@ -15,7 +15,9 @@ import numpy as np
 import pandas as pd
 from flask import Flask
 from flask import request
+from waitress import serve
 import requests
+import argparse
 
 import openai
 
@@ -334,8 +336,8 @@ def exithandler(signal_received, frame, proc):
     exit(0)
 
 
-def handle_webhook():
-    x = threading.Thread(target=webhook_func, daemon=True)
+def handle_webhook(local, url):
+    x = threading.Thread(target=lambda: webhook_func(local, url), daemon=True)
     x.start()
 
 
@@ -395,39 +397,49 @@ def handle_job_queue(user_db):
     x.start()
 
 
-def webhook_func():
+def webhook_func(local, url):
     global hookproc
     global secret_token
+    sleep_time = 110 * 60 if local else 24 * 60 * 60
     while True:
         if hookproc is not None:
             page = urllib.request.urlopen(f'https://api.telegram.org/bot{bot_token}/setWebhook?remove')
             print(f'Remove webhook status: {page.getcode()}')
             hookproc.kill()
         secret_token = str(uuid.uuid1())
-        hookproc = set_webhook(port, secret_token)
-        time.sleep(110 * 60)  # refresh hook url before it expires
+        hookproc = set_webhook(port, secret_token, url)
+        time.sleep(sleep_time)  # refresh hook url
 
 
-def set_webhook(port, secret_token):
-    proc = subprocess.Popen(['ngrok', 'http', f'{port}', '--log=stdout'], stdout=subprocess.PIPE)
-    lines_iter = iter(proc.stdout.readline, "")
-    found_url = False
-    url_regexp = [r"https://[-a-z0-9]+.eu.ngrok.io", r"https://[-a-z0-9]+.ngrok.io", r"https://[-a-z0-9]+.ngrok-free.app"]
-    while not found_url:
-        stdout_line = str(next(lines_iter))
-        url_list = [re.findall(u, stdout_line) for u in url_regexp]
-        for ulist in url_list:
-            if len(ulist) > 0:
-                found_url = True
-                url = ulist[0]
-                break
-    print(f'Webhook url: {url}')
-    response = requests.post(
-        url=f'https://api.telegram.org/bot{bot_token}/setWebhook',
-        data={'url': url, 'secret_token': secret_token}
-    ).json()
-    response_str = json.dumps(response, indent='\t')
-    print(f'Setting webhook status: {response_str}')
+def set_webhook(port, secret_token, url):
+    if url is not None:
+        response = requests.post(
+            url=f'https://api.telegram.org/bot{bot_token}/setWebhook',
+            data={'url': url, 'secret_token': secret_token}
+        ).json()
+        response_str = json.dumps(response, indent='\t')
+        print(f'Setting webhook status: {response_str}')
+        proc = None
+    else:
+        proc = subprocess.Popen(['ngrok', 'http', f'{port}', '--log=stdout'], stdout=subprocess.PIPE)
+        lines_iter = iter(proc.stdout.readline, "")
+        found_url = False
+        url_regexp = [r"https://[-a-z0-9]+.eu.ngrok.io", r"https://[-a-z0-9]+.ngrok.io", r"https://[-a-z0-9]+.ngrok-free.app"]
+        while not found_url:
+            stdout_line = str(next(lines_iter))
+            url_list = [re.findall(u, stdout_line) for u in url_regexp]
+            for ulist in url_list:
+                if len(ulist) > 0:
+                    found_url = True
+                    url = ulist[0]
+                    break
+        print(f'Webhook url: {url}')
+        response = requests.post(
+            url=f'https://api.telegram.org/bot{bot_token}/setWebhook',
+            data={'url': url, 'secret_token': secret_token}
+        ).json()
+        response_str = json.dumps(response, indent='\t')
+        print(f'Setting webhook status: {response_str}')
     return proc
 
 
@@ -454,6 +466,15 @@ def increment_word_reps(chat_id, word_id):
 
 if __name__ == '__main__':
     client = 'openai'
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--local", action='store_true', help="Run locally")
+    parser.add_argument("--webhook", type=str, help="Webhook for telegram")
+    args = parser.parse_args()
+
+    if not args.local and args.webhook is None:
+        print('Webhook must be specified when not running locally.')
+        exit()
 
     lock = threading.Lock()
 
@@ -503,7 +524,9 @@ if __name__ == '__main__':
     hookproc = None
     secret_token = None
     signal(SIGINT, lambda s, f: exithandler(s, f, hookproc))
-    handle_webhook()
+    handle_webhook(local=args.local, url=args.webhook)
 
     handle_job_queue(user_config)
-    app.run(port=port)
+
+    host = "0.0.0.0" if args.local else args.webhook
+    serve(app, host=host, port=port)
