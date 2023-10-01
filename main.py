@@ -283,6 +283,9 @@ def handle_user_message(chat_id, lang, tokens, msg):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
+        headers = {k: v for k, v in request.headers.items()}
+        if not 'X-Telegram-Bot-Api-Secret-Token' in headers or headers['X-Telegram-Bot-Api-Secret-Token'] != secret_token:
+            print('No secret token, or secret token does not match')
         msg = request.get_json()
         chat_id, type, data = parse_message(msg)
         lang = user_config.get_user_data(chat_id)['language']
@@ -394,16 +397,18 @@ def handle_job_queue(user_db):
 
 def webhook_func():
     global hookproc
+    global secret_token
     while True:
         if hookproc is not None:
             page = urllib.request.urlopen(f'https://api.telegram.org/bot{bot_token}/setWebhook?remove')
             print(f'Remove webhook status: {page.getcode()}')
             hookproc.kill()
-        hookproc = set_webhook(port)
+        secret_token = str(uuid.uuid1())
+        hookproc = set_webhook(port, secret_token)
         time.sleep(110 * 60)  # refresh hook url before it expires
 
 
-def set_webhook(port):
+def set_webhook(port, secret_token):
     proc = subprocess.Popen(['ngrok', 'http', f'{port}', '--log=stdout'], stdout=subprocess.PIPE)
     lines_iter = iter(proc.stdout.readline, "")
     found_url = False
@@ -417,8 +422,12 @@ def set_webhook(port):
                 url = ulist[0]
                 break
     print(f'Webhook url: {url}')
-    page = urllib.request.urlopen(f'https://api.telegram.org/bot{bot_token}/setWebhook?url={url}')
-    print(f'Setting webhook status: {page.getcode()}')
+    response = requests.post(
+        url=f'https://api.telegram.org/bot{bot_token}/setWebhook',
+        data={'url': url, 'secret_token': secret_token}
+    ).json()
+    response_str = json.dumps(response, indent='\t')
+    print(f'Setting webhook status: {response_str}')
     return proc
 
 
@@ -470,16 +479,29 @@ if __name__ == '__main__':
             openai.api_key = lines[0].strip()
             openai.organization = lines[1].strip()
 
-    words_db = WordsDB('resources/words_db.csv')
-    reading_db = ReadingDB('resources/reading_lists.json')
-    words_progress_db = WordsProgressDB('user_data/words_progress_db.csv')
-    user_config = UserConfig('user_data/user_config.json')
+    words_db_path = os.getenv('CH_WORDS_DB_PATH')
+    words_db_path = 'resources/words_db.csv' if words_db_path is None else words_db_path
+
+    reading_db_path = os.getenv('CH_READING_DB_PATH')
+    reading_db_path = 'resources/reading_lists.json' if reading_db_path is None else reading_db_path
+
+    words_progress_db_path = os.getenv('CH_WORDS_PROGRESS_DB_PATH')
+    words_progress_db_path = 'user_data/words_progress_db.csv' if words_progress_db_path is None else words_progress_db_path
+
+    user_config_path = os.getenv('CH_USER_CONFIG_PATH')
+    user_config_path = 'user_data/user_config.json' if user_config_path is None else user_config_path
+
+    words_db = WordsDB(words_db_path)
+    reading_db = ReadingDB(reading_db_path)
+    words_progress_db = WordsProgressDB(words_progress_db_path)
+    user_config = UserConfig(user_config_path)
 
     lp = LearningPlan(words_progress_db=words_progress_db, words_db=words_db,
                       reading_db=reading_db, user_config=user_config)
 
     port = 5001
     hookproc = None
+    secret_token = None
     signal(SIGINT, lambda s, f: exithandler(s, f, hookproc))
     handle_webhook()
 

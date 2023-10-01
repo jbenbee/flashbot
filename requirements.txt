@@ -3,4 +3,5 @@ flask
 openai
 pytest
 joblib
-
+pandas
+numpy
