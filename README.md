@@ -18,14 +18,17 @@ In addition, you can invoke a command to send you a new exercise whenever you wa
    - next_reading - Next reading exercise 
    - add_word - Add a word 
    - known_words - List of known words
-2. Specify the bot token in environmental variable ```BOT_TOKEN``` or in ```api_keys/bot_token.txt```
-3. Specify OpenAI API key in environmental variable ```OPENAI_KEY``` or on the first line of ```api_keys/openai_api.txt```.
-4. Specify OpenAI organization in environment variable ```OPENAI_ORG``` or on the second line of ```api_keys/openai_api.txt```.
-5. Find chat_ids of all users who will use the bot.
-6. Specify user config in ```user_data/user_config.json``` for all users.
-7. Add words that the users are learning into ```resources/words_db.csv```.
-8. Add topics for reading exercises into ```resources/reading_lists.json```.
-9. [Install ```ngrok```](https://ngrok.com/)
+3. Specify the bot token in environmental variable ```BOT_TOKEN``` or in ```api_keys/bot_token.txt```
+4. Specify OpenAI API key in environmental variable ```OPENAI_KEY``` or on the first line of ```api_keys/openai_api.txt```.
+5. Specify OpenAI organization in environment variable ```OPENAI_ORG``` or on the second line of ```api_keys/openai_api.txt```.
+6. Find chat_ids of all users who will use the bot.
+7. Specify user config in ```user_data/user_config.json``` for all users.
+8. Add words that the users are learning into ```resources/words_db.csv```.
+9. Add topics for reading exercises into ```resources/reading_lists.json```.
 10. ```pip install -r requirements.txt```
-11. ```python main.py```
+11. To run locally using ngrok:
+    - [Install ```ngrok```](https://ngrok.com/)
+    - ```python main.py --local```
+12. To run on a server:
+    - ```python main.py --webhook <webhook url>```
 
