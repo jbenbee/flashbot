@@ -528,5 +528,4 @@ if __name__ == '__main__':
 
     handle_job_queue(user_config)
 
-    host = "0.0.0.0" if args.local else args.webhook
-    serve(app, host=host, port=port)
+    serve(app, host="0.0.0.0", port=port, url_scheme='https')
