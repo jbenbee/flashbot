@@ -13,13 +13,13 @@ In addition, you can invoke a command to send you a new exercise whenever you wa
 
 1. Create a telegram bot. See, e.g. [https://www.pragnakalp.com/create-telegram-bot-using-python-tutorial-with-examples/](https://www.pragnakalp.com/create-telegram-bot-using-python-tutorial-with-examples/).
 2. Add the following commands to the bot (BotFather->Edit Bot->Edit Commands):
-   - /next_test - Next test word 
-   - /next_new - Next new word 
-   - /next_reading - Next reading exercise 
-   - /add_word - Add a word 
-   - /known_words - List of known words
-   - /cur_word_group - Current word group
-   - /sel_word_group - Select a word group
+   - next_test - Next test word 
+   - next_new - Next new word 
+   - next_reading - Next reading exercise 
+   - add_word - Add a word 
+   - known_words - List of known words
+   - cur_group_info - Current word group
+   - sel_word_group - Select a word group
 3. Specify the bot token in environmental variable ```BOT_TOKEN``` or in ```api_keys/bot_token.txt```
 4. Specify OpenAI API key in environmental variable ```OPENAI_KEY``` or on the first line of ```api_keys/openai_api.txt```.
 5. Specify OpenAI organization in environment variable ```OPENAI_ORG``` or on the second line of ```api_keys/openai_api.txt```.
