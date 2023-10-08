@@ -3,4 +3,7 @@ flask
 openai
 pytest
 joblib
-
+pandas
+numpy
+argparse
+waitress

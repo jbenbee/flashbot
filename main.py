@@ -15,7 +15,9 @@ import numpy as np
 import pandas as pd
 from flask import Flask
 from flask import request
+from waitress import serve
 import requests
+import argparse
 
 import openai
 
@@ -283,6 +285,9 @@ def handle_user_message(chat_id, lang, tokens, msg):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
+        headers = {k: v for k, v in request.headers.items()}
+        if not 'X-Telegram-Bot-Api-Secret-Token' in headers or headers['X-Telegram-Bot-Api-Secret-Token'] != secret_token:
+            print('No secret token, or secret token does not match')
         msg = request.get_json()
         chat_id, type, data = parse_message(msg)
         lang = user_config.get_user_data(chat_id)['language']
@@ -331,8 +336,8 @@ def exithandler(signal_received, frame, proc):
     exit(0)
 
 
-def handle_webhook():
-    x = threading.Thread(target=webhook_func, daemon=True)
+def handle_webhook(local, url):
+    x = threading.Thread(target=lambda: webhook_func(local, url), daemon=True)
     x.start()
 
 
@@ -392,33 +397,49 @@ def handle_job_queue(user_db):
     x.start()
 
 
-def webhook_func():
+def webhook_func(local, url):
     global hookproc
+    global secret_token
+    sleep_time = 110 * 60 if local else 24 * 60 * 60
     while True:
         if hookproc is not None:
             page = urllib.request.urlopen(f'https://api.telegram.org/bot{bot_token}/setWebhook?remove')
             print(f'Remove webhook status: {page.getcode()}')
             hookproc.kill()
-        hookproc = set_webhook(port)
-        time.sleep(110 * 60)  # refresh hook url before it expires
+        secret_token = str(uuid.uuid1())
+        hookproc = set_webhook(port, secret_token, url)
+        time.sleep(sleep_time)  # refresh hook url
 
 
-def set_webhook(port):
-    proc = subprocess.Popen(['ngrok', 'http', f'{port}', '--log=stdout'], stdout=subprocess.PIPE)
-    lines_iter = iter(proc.stdout.readline, "")
-    found_url = False
-    url_regexp = [r"https://[-a-z0-9]+.eu.ngrok.io", r"https://[-a-z0-9]+.ngrok.io", r"https://[-a-z0-9]+.ngrok-free.app"]
-    while not found_url:
-        stdout_line = str(next(lines_iter))
-        url_list = [re.findall(u, stdout_line) for u in url_regexp]
-        for ulist in url_list:
-            if len(ulist) > 0:
-                found_url = True
-                url = ulist[0]
-                break
-    print(f'Webhook url: {url}')
-    page = urllib.request.urlopen(f'https://api.telegram.org/bot{bot_token}/setWebhook?url={url}')
-    print(f'Setting webhook status: {page.getcode()}')
+def set_webhook(port, secret_token, url):
+    if url is not None:
+        response = requests.post(
+            url=f'https://api.telegram.org/bot{bot_token}/setWebhook',
+            data={'url': url, 'secret_token': secret_token}
+        ).json()
+        response_str = json.dumps(response, indent='\t')
+        print(f'Setting webhook status: {response_str}')
+        proc = None
+    else:
+        proc = subprocess.Popen(['ngrok', 'http', f'{port}', '--log=stdout'], stdout=subprocess.PIPE)
+        lines_iter = iter(proc.stdout.readline, "")
+        found_url = False
+        url_regexp = [r"https://[-a-z0-9]+.eu.ngrok.io", r"https://[-a-z0-9]+.ngrok.io", r"https://[-a-z0-9]+.ngrok-free.app"]
+        while not found_url:
+            stdout_line = str(next(lines_iter))
+            url_list = [re.findall(u, stdout_line) for u in url_regexp]
+            for ulist in url_list:
+                if len(ulist) > 0:
+                    found_url = True
+                    url = ulist[0]
+                    break
+        print(f'Webhook url: {url}')
+        response = requests.post(
+            url=f'https://api.telegram.org/bot{bot_token}/setWebhook',
+            data={'url': url, 'secret_token': secret_token}
+        ).json()
+        response_str = json.dumps(response, indent='\t')
+        print(f'Setting webhook status: {response_str}')
     return proc
 
 
@@ -446,6 +467,15 @@ def increment_word_reps(chat_id, word_id):
 if __name__ == '__main__':
     client = 'openai'
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--local", action='store_true', help="Run locally")
+    parser.add_argument("--webhook", type=str, help="Webhook for telegram")
+    args = parser.parse_args()
+
+    if not args.local and args.webhook is None:
+        print('Webhook must be specified when not running locally.')
+        exit()
+
     lock = threading.Lock()
 
     running_commands = dict()
@@ -470,18 +500,32 @@ if __name__ == '__main__':
             openai.api_key = lines[0].strip()
             openai.organization = lines[1].strip()
 
-    words_db = WordsDB('resources/words_db.csv')
-    reading_db = ReadingDB('resources/reading_lists.json')
-    words_progress_db = WordsProgressDB('user_data/words_progress_db.csv')
-    user_config = UserConfig('user_data/user_config.json')
+    words_db_path = os.getenv('CH_WORDS_DB_PATH')
+    words_db_path = 'resources/words_db.csv' if words_db_path is None else words_db_path
+
+    reading_db_path = os.getenv('CH_READING_DB_PATH')
+    reading_db_path = 'resources/reading_lists.json' if reading_db_path is None else reading_db_path
+
+    words_progress_db_path = os.getenv('CH_WORDS_PROGRESS_DB_PATH')
+    words_progress_db_path = 'user_data/words_progress_db.csv' if words_progress_db_path is None else words_progress_db_path
+
+    user_config_path = os.getenv('CH_USER_CONFIG_PATH')
+    user_config_path = 'user_data/user_config.json' if user_config_path is None else user_config_path
+
+    words_db = WordsDB(words_db_path)
+    reading_db = ReadingDB(reading_db_path)
+    words_progress_db = WordsProgressDB(words_progress_db_path)
+    user_config = UserConfig(user_config_path)
 
     lp = LearningPlan(words_progress_db=words_progress_db, words_db=words_db,
                       reading_db=reading_db, user_config=user_config)
 
     port = 5001
     hookproc = None
+    secret_token = None
     signal(SIGINT, lambda s, f: exithandler(s, f, hookproc))
-    handle_webhook()
+    handle_webhook(local=args.local, url=args.webhook)
 
     handle_job_queue(user_config)
-    app.run(port=port)
+
+    serve(app, host="0.0.0.0", port=port, url_scheme='https')
