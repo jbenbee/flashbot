@@ -3,7 +3,8 @@
     "language": "italian",
     "max_tokens": 600,
     "exercise_types": ["words", "reading"],
-    "word_groups": ["user_defined", "B1-B2"],
+    "word_groups": ["user-defined", "B1-B2"],
+    "current_word_group": "B1-B2",
     "reading_topics": ["Advanced dialogues on everyday topics", "Beginner dialogues on everyday topics"],
     "schedule": {
       "words": {
@@ -20,7 +21,8 @@
     "language": "spanish",
     "max_tokens": 600,
     "exercise_types": ["words"],
-    "word_groups": ["user_defined", "common verbs"],
+    "word_groups": ["user-defined", "common verbs"],
+    "current_word_group": "common verbs",
     "reading_topics": [],
     "schedule": {
       "words": {

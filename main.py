@@ -149,7 +149,7 @@ def tel_send_message(chat_id, text, buttons=None):
             buttons_list.append(
                 {
                     "text": button_text,
-                    "callback_data": f"ic_{'_'.join(button_text.split())}_{button_id}"
+                    "callback_data": f"{button_text}_{button_id}" if button_id is not None else button_text
                 }
             )
 
@@ -169,14 +169,14 @@ def handle_commands(chat_id, lang, command):
             tel_send_message(chat_id, f'Thinking...')
             exercise = lp.get_next_words_exercise(chat_id, lang, 'test')
             if exercise is None:
-                tel_send_message(chat_id, 'Sorry, there are no more words for testing.')
+                tel_send_message(chat_id, 'There are no words for testing.')
             else:
                 handle_new_exercise(chat_id, exercise)
         elif command == '/next_new':
             tel_send_message(chat_id, f'Thinking...')
             exercise = lp.get_next_words_exercise(chat_id, lang, 'learn')
             if exercise is None:
-                tel_send_message(chat_id, 'Sorry, there are no more new words to learn.')
+                tel_send_message(chat_id, 'There are no new words to learn.')
             else:
                 handle_new_exercise(chat_id, exercise)
         elif command == '/next_reading':
@@ -195,6 +195,16 @@ def handle_commands(chat_id, lang, command):
             known_words_str = "\n".join(known_words)
             tel_send_message(chat_id, f'Number of learned words: {len(known_words)}\n'
                                       f'List of learned words:\n{known_words_str}')
+        elif command == '/cur_word_group':
+            cur_word_group = user_config.get_user_data(chat_id)['current_word_group']
+            group_info = get_word_group_info(chat_id, lang, cur_word_group)
+            tel_send_message(chat_id, f'Current word group is {cur_word_group}.\n'
+                                      f'Group info:\n'
+                                      f'{group_info}')
+        elif command == '/sel_word_group':
+            running_commands[chat_id] = command
+            buttons = [(None, group) for group in user_config.get_user_data(chat_id)['word_groups']]
+            tel_send_message(chat_id, 'Select a word group:', buttons=buttons)
         else:
             raise ValueError(f'Unknown command {command}')
 
@@ -207,15 +217,15 @@ def handle_button_press(chat_id, lang, udata, exercise):
         print(f'Button id {button_id} does not match exercise id {exercise.uid}')
     else:
         if isinstance(exercise, WordsExerciseLearn) or isinstance(exercise, WordsExerciseTest):
-            if f'ic_Ignore_this_word_{exercise.uid}' == udata:
+            if f'Ignore this word_{exercise.uid}' == udata:
                 words_progress_db.ignore_word(chat_id, exercise.word_id)
                 words_progress_db.save_progress()
                 tel_send_message(chat_id, f'The word "{exercise.word}" is added to ignore list.')
-            elif f'ic_Hint_{exercise.uid}' == udata:
+            elif f'Hint_{exercise.uid}' == udata:
                 tel_send_message(chat_id, f'Try to use the word "{exercise.word}" in your translation.')
-            elif f'ic_Correct_answer_{exercise.uid}' == udata:
+            elif f'Correct answer_{exercise.uid}' == udata:
                 tel_send_message(chat_id, exercise.correct_answer())
-            elif f'ic_I_know_this_word_{exercise.uid}' == udata:
+            elif f'I know this word_{exercise.uid}' == udata:
                 words_progress_db.add_known_word(chat_id, exercise.word_id)
                 words_progress_db.save_progress()
                 tel_send_message(chat_id, f'The word "{exercise.word}" is added to the list of known words.')
@@ -233,16 +243,18 @@ def handle_button_press(chat_id, lang, udata, exercise):
 def execute_command(chat_id, lang, command, msg):
     if command == '/add_word':
         # extract word and word group
-        word_parts = msg.split(':')
-        word = word_parts[0].strip()
-        if len(word_parts) == 1:
-            word_group = 'user-defined'
-        else:
-            word_group = word_parts[1].strip()
-
-        words_db.add_new_word(word, word_group, lang, chat_id)
+        word = msg.strip()
+        cur_word_group = user_config.get_user_data(chat_id)['current_word_group']
+        words_db.add_new_word(word, cur_word_group, lang, chat_id)
         words_db.save_words_db()
-        user_msg = f'The word "{word}" is successfully added.'
+        user_msg = f'Word "{word}" is successfully added to word group "{cur_word_group}".'
+    elif command == '/sel_word_group':
+        cur_word_group = msg
+        user_config.set_word_group(chat_id, cur_word_group)
+        group_info = get_word_group_info(chat_id, lang, cur_word_group)
+        user_msg = f'Selected word group "{msg}".\n'\
+                   f'Group info:\n'\
+                   f'{group_info}'
     else:
         raise ValueError(f'Unknown command {command}.')
     return user_msg
@@ -255,7 +267,6 @@ def handle_user_message(chat_id, lang, tokens, msg):
         command = running_commands.pop(chat_id)
         user_msg = execute_command(chat_id, lang, command, msg)
         tel_send_message(chat_id, user_msg)
-
     elif chat_id in running_exercises.keys():
         exercise = running_exercises.pop(chat_id)
 
@@ -286,8 +297,12 @@ def handle_user_message(chat_id, lang, tokens, msg):
 def index():
     if request.method == 'POST':
         headers = {k: v for k, v in request.headers.items()}
-        if not 'X-Telegram-Bot-Api-Secret-Token' in headers or headers['X-Telegram-Bot-Api-Secret-Token'] != secret_token:
-            print('No secret token, or secret token does not match')
+        if 'X-Telegram-Bot-Api-Secret-Token' not in headers:
+            print('No secret token.')
+            return 'Error'
+        elif headers['X-Telegram-Bot-Api-Secret-Token'] != secret_token:
+            print('Secret token does not match')
+            return 'Error'
         msg = request.get_json()
         chat_id, type, data = parse_message(msg)
         lang = user_config.get_user_data(chat_id)['language']
@@ -302,20 +317,34 @@ def index():
                     running_exercises.pop(chat_id)
                 handle_commands(chat_id, lang, data)
             elif type == 'button':
-                if chat_id in running_commands.keys():
-                    # if there were any running commands, remove them when the user interacts with an exercise
-                    running_commands.pop(chat_id)
-                if chat_id in running_exercises.keys():
-                    exercise = running_exercises[chat_id]
-                    handle_button_press(chat_id, lang, data, exercise)
+                button_text = data.split('_')[0]
+                if button_text in exercise_buttons:
+                    # user pressed a button for an exercise
+                    if chat_id in running_commands.keys():
+                        # if there were any running commands, remove them when the user interacts with an exercise
+                        running_commands.pop(chat_id)
+                    if chat_id in running_exercises.keys():
+                        exercise = running_exercises[chat_id]
+                        handle_button_press(chat_id, lang, data, exercise)
+                    else:
+                        tel_send_message(chat_id, 'Sorry, the exercise has been completed or is expired.')
                 else:
-                    tel_send_message(chat_id, 'Sorry, the exercise has been completed or is expired.')
+                    # user pressed a button required to complete a command
+                    if chat_id in running_commands.keys():
+                        command = running_commands.pop(chat_id)
+                        user_msg = execute_command(chat_id, lang, command, data)
+                        tel_send_message(chat_id, user_msg)
+                    else:
+                        tel_send_message(chat_id, 'Something went wrong, please contact the admin.')
+                        raise Exception(f'I think that the user pressed a button for a command, '
+                                        f'but there are no running commands for user {chat_id}.')
             elif type == 'message':
                 handle_user_message(chat_id, lang, tokens, data)
             else:
-                print(f'Unknown message type {chat_id}, {type}, {data}')
                 raise ValueError(f'Unknown message type {type}, {data}')
         except Exception as e:
+            if chat_id in running_commands.keys(): running_commands.pop(chat_id)
+            if chat_id in running_exercises.keys(): running_exercises.pop(chat_id)
             print(e)
             tel_send_message(chat_id, f'Something went terribly wrong, please try again or notify the admin.')
         lock.release()
@@ -443,16 +472,30 @@ def set_webhook(port, secret_token, url):
     return proc
 
 
-def get_known_words(chat_id, lang):
+def get_known_words(chat_id, lang, group=None):
     words_df = words_db.get_words_df()
     progress_df = words_progress_db.get_progress_df()
     progress_words_df = pd.merge(progress_df, words_df, how='left', left_on='word_id',
                                  right_on='id', sort=False, validate='1:1')
 
-    words = progress_words_df.loc[(progress_words_df['chat_id'] == chat_id) &
+    pw_df = progress_words_df.loc[(progress_words_df['chat_id'] == chat_id) &
                                   (progress_words_df['lang'] == lang) &
-                                  progress_words_df['is_known'], 'word'].to_list()
+                                  progress_words_df['is_known']]
+    if group is None:
+        words = pw_df['word'].to_list()
+    else:
+        words = pw_df.loc[pw_df['group'] == group, 'word'].to_list()
     return words
+
+
+def get_word_group_info(chat_id, lang, group):
+    user_data = user_config.get_user_data(chat_id)
+    wdf = words_db.get_words_df()
+    gr_lang_words = wdf.loc[(wdf['lang'] == user_data['language']) & (wdf['group'] == group)].shape[0]
+    n_learned_words = len(get_known_words(chat_id, lang, group))
+    group_info = f'Total number of words in the group is {gr_lang_words}.\n' \
+                 f'Number of learned words in the group is {n_learned_words}.'
+    return group_info
 
 
 def increment_word_reps(chat_id, word_id):
@@ -519,6 +562,9 @@ if __name__ == '__main__':
 
     lp = LearningPlan(words_progress_db=words_progress_db, words_db=words_db,
                       reading_db=reading_db, user_config=user_config)
+
+    # list of known exercise buttons
+    exercise_buttons = ['Ignore this word', 'Hint', 'Correct answer', 'I know this word']
 
     port = 5001
     hookproc = None

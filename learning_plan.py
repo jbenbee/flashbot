@@ -33,8 +33,8 @@ class LearningPlan:
         words_df = self.words_db.get_words_df()
 
         # choose word groups specific to the user
-        user_word_groups = self.user_config.get_user_data(chat_id)['word_groups']
-        user_words_df = words_df.loc[words_df['group'].isin(user_word_groups)]
+        current_word_group = self.user_config.get_user_data(chat_id)['current_word_group']
+        user_words_df = words_df.loc[words_df['group'] == current_word_group]
 
         if user_words_df.shape[0] == 0:
             return None
@@ -52,9 +52,6 @@ class LearningPlan:
         learn_words = not_ignored_words[~test_words_mask]
         learn_weights = [0 if v[1] == np.nan else min(0.001, v[1]) for v in learn_words['num_reps'].items()]
 
-        if learn_words.shape[0] == 0:
-            print('Warning: No new words are left.')
-
         if 'test' == mode:
             words = test_words
             weights = test_weights
@@ -62,7 +59,7 @@ class LearningPlan:
             words = learn_words
             weights = learn_weights
 
-        if len(words.keys()) == 0:
+        if words.shape[0] == 0:
             # there are no words for the selected mode
             print('Warning: There are 0 selected words.')
             return None
