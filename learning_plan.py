@@ -50,7 +50,7 @@ class LearningPlan:
 
         test_weights = [max(1/v[1], 0.001) for v in test_words['num_reps'].items()]
         learn_words = not_ignored_words[~test_words_mask]
-        learn_weights = [0 if v[1] == np.nan else min(0.001, v[1]) for v in learn_words['num_reps'].items()]
+        learn_weights = [0 if v[1] == np.nan else max(1/v[1], 0.001) for v in learn_words['num_reps'].items()]
 
         if 'test' == mode:
             words = test_words
