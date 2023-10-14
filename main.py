@@ -410,7 +410,8 @@ def start_job_queue(user_data, exercise_type):
                 ping_user(chat_id=job['chat_id'], lang=job['lang'],
                           exercise_type=exercise_type, exercise_data=job['exercise_data'])
 
-        tomorrow_ping_time = datetime.combine(datetime.today()+timedelta(days=1), earliest_time)
+        tomorrow_ping_time = datetime.combine(datetime.today() + timedelta(days=1), earliest_time) - timedelta(
+            minutes=3)
         print(f'{exercise_type}: Going to sleep until {tomorrow_ping_time}')
         time.sleep((tomorrow_ping_time - datetime.now()).total_seconds())
 
