@@ -105,9 +105,17 @@ def ping_user(chat_id, lang, exercise_type, exercise_data):
         exercise = lp.get_next_reading_exercise(chat_id, lang, topics=exercise_data)
     elif exercise_type == 'words':
         exercise = lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
+        if exercise is None and exercise_data == 'test':
+            # there are no words to test
+            exercise = lp.get_next_words_exercise(chat_id, lang, mode='learn')
     else:
         raise ValueError(f'Unknown exercise type {exercise_type}')
-    handle_new_exercise(chat_id, exercise)
+
+    if exercise is None:
+        tel_send_message(chat_id, f'An exercise is scheduled, but no exercise could be created for type {exercise_type}, data {exercise_data}.')
+        print(f'There are no exercises of type {exercise_type} for data {exercise_data}.')
+    else:
+        handle_new_exercise(chat_id, exercise)
     lock.release()
 
 
@@ -195,10 +203,10 @@ def handle_commands(chat_id, lang, command):
             known_words_str = "\n".join(known_words)
             tel_send_message(chat_id, f'Number of learned words: {len(known_words)}\n'
                                       f'List of learned words:\n{known_words_str}')
-        elif command == '/cur_word_group':
+        elif command == '/cur_group_info':
             cur_word_group = user_config.get_user_data(chat_id)['current_word_group']
             group_info = get_word_group_info(chat_id, lang, cur_word_group)
-            tel_send_message(chat_id, f'Current word group is {cur_word_group}.\n'
+            tel_send_message(chat_id, f'Current word group is "{cur_word_group}".\n'
                                       f'Group info:\n'
                                       f'{group_info}')
         elif command == '/sel_word_group':
@@ -402,7 +410,8 @@ def start_job_queue(user_data, exercise_type):
                 ping_user(chat_id=job['chat_id'], lang=job['lang'],
                           exercise_type=exercise_type, exercise_data=job['exercise_data'])
 
-        tomorrow_ping_time = datetime.combine(datetime.today()+timedelta(days=1), earliest_time)
+        tomorrow_ping_time = datetime.combine(datetime.today() + timedelta(days=1), earliest_time) - timedelta(
+            minutes=3)
         print(f'{exercise_type}: Going to sleep until {tomorrow_ping_time}')
         time.sleep((tomorrow_ping_time - datetime.now()).total_seconds())
 
