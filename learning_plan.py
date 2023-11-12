@@ -55,7 +55,6 @@ class LearningPlan:
 
         if seen_words.shape[0] > 3:
             learn_words = seen_words
-            # learn_weights = [0.01 if np.isnan(v[1]).item() else 1 + v[1] for v in learn_words['num_reps'].items()]
         else:
             learn_words = not_ignored_learn_words
 
