@@ -72,7 +72,7 @@ class WordsExerciseTest(Exercise):
             mes = f'Translate into {self.lang}:\n' \
                   f'\n{test_sentence}\n'
         else:
-            mes = f'Correct answer: {self.correct_answer()}\n\nComments (might contain mistakes):\n{assistant_response}'
+            mes = f'Reference translation: {self.correct_answer()}\n\nCorrections:\n{assistant_response}'
         return mes
 
     def get_next_answer_test_query(self, user_response):
@@ -92,10 +92,9 @@ class WordsExerciseTest(Exercise):
 
         else:
             query = self.analysis_pre_prompt + '\n\n' + \
-                    f'Teacher: Translate "{self.assistant_responses[0]["test"]}" into {self.lang}:\n' \
-                    f'Student: {user_response}\n' \
-                    f'Reference translation: {self.correct_answer()}\n' \
-                    f'Analysis:'
+                    f'Translation: {self.assistant_responses[0]["test"]} -> {user_response}\n' \
+                    f'Suggested word: {self.word}\n' \
+                    f'Correction: '
         return query
 
     def get_next_assistant_query(self, user_response) -> (str,int,bool):
