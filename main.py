@@ -315,7 +315,7 @@ def index():
         chat_id, type, data = parse_message(msg)
         lang = user_config.get_user_data(chat_id)['language']
         tokens = user_config.get_user_data(chat_id)['max_tokens']
-        print(f'Received user message: {data}')
+        print(f'{chat_id} message: {data}')
 
         lock.acquire()
         try:

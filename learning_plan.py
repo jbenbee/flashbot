@@ -49,8 +49,16 @@ class LearningPlan:
         test_words = not_ignored_words.loc[test_words_mask]
 
         test_weights = [max(1/v[1], 0.001) for v in test_words['num_reps'].items()]
-        learn_words = not_ignored_words[~test_words_mask]
-        learn_weights = [0.5 if np.isnan(v[1]).item() else 1 + v[1] for v in learn_words['num_reps'].items()]
+
+        not_ignored_learn_words = not_ignored_words[~test_words_mask]
+        seen_words = not_ignored_learn_words.loc[~not_ignored_learn_words['num_reps'].isna()]
+
+        if seen_words.shape[0] > 3:
+            learn_words = seen_words
+        else:
+            learn_words = not_ignored_learn_words
+
+        learn_weights = [1] * len(learn_words)
 
         if 'test' == mode:
             words = test_words

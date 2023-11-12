@@ -1,24 +1,44 @@
-Teacher: Translate the sentence "I consumed all the food in the refrigerator." into italian.
-Student: Ho consumato tutto il cibo nel frigorifero
-Reference translation: Ho consumato tutto il cibo nel frigorifero.
-Analysis: Your translation is exactly the same as the reference translation, well done!
+Correct the following translations with the least possible modifications.
+The correction should maintain the intended meaning of the sentence while fixing the grammar and using the suggested word.
+Explain every correction.
 
-Teacher: Translate the sentence "I shared my meal with a friend." into spanish.
-Student: Compartí mi comida con una amiga
-Reference translation: Compartí mi comida con una amigo.
-Analysis: The only difference between your translation and the reference translation is that your translation uses a female version of the word "friend", while the reference translation uses a male version. Both options are correct to use since the english sentence does not provide any gender-specific information. Therefore your translation is as good as the reference translation, good job!.
+Translation: I shared my meal with a friend. -> Compartí mi comida con una amiga
+Suggested word: compartir
+Correction: Your translation is correct, well done!
 
-Teacher: Translate the sentence "I put keys in the bag." into italian.
-Student: Ho messo le chiavi nella borsa
-Reference translation: Ho messo le chiavi all'interno della borsa.
-Analysis: The difference between your translation and the reference translation is that you used "nella" while the reference translation used "all'interno" to convey the meaning of "inside". Both options are correct to use in this context and therefore your translation conveys the same meaning as the reference translation, good job!
+Translation: I spread the news among my friends. -> Disolví la noticia entre mis amigos
+Suggested word: difundir
+Correction: Difundí la noticia entre mis amigos.
+Explanation of corrections:
+- "Disolví" is not an appropriate word in this context. It means "dissolved," and it does not convey the intended meaning of spreading news. "Difundí" is the correct word to use, as it means "I spread."
+- No other corrections were necessary
 
-Teacher: Translate the sentence "I spread the news among my friends." into spanish.
-Student: Disolví la noticia entre mis amigos
-Reference translation: Difundí la noticia entre mis amigos.
-Analysis: The sentence "Disolví la noticia entre mis amigos" is grammatically correct in Spanish, but it does not convey the same meaning as "I spread the news among my friends.". The word "disolví" typically means "dissolved" or "dispersed," which is not appropriate for a piece of news. A more suitable verb in this context would be "compartí" (shared) or "difundí" (spread) instead of "disolví", in which case the sentence would be "Difundí la noticia entre mis amigos.".
+Translation: I have taken a leave of absence from work for one week. -> Ho prendo un asperrativa a una settimana
+Suggested word: aspettativa
+Correction: Ho preso un'aspettativa per una settimana.
+Explanation of corrections:
+- "Ho prendo" has been corrected to "Ho preso". In Italian, "prendo" is the present tense, while "preso" is the past tense, which is the appropriate tense for describing the action of taking a leave of absence that has already occurred.
+- "un asperrativa" has been corrected to "un'aspettativa". "Asperrativa" is a misspelling, and the correct term for "leave of absence" in Italian is "aspettativa". In addition, article "un" has been changed to "un'". In Italian, when a word ending with a vowel precedes a word starting with a vowel, an apostrophe (') is added to avoid a collision of vowel sounds. This is called an elision.
+- "a una settimana" has been corrected to "per una settimana". In Italian when indicating a duration of time it is common to use "per" to mean "for". "A" is typically used to express a specific time or point in time. So "a una settimana" would suggest "at one week" rather than "for one week".
 
-Teacher: Translate the sentence "I have taken a leave of absence from work for one week." into italian.
-Student: Ho prendo un asperrativa per una settimana
-Reference translation: Ho preso un'aspettativa per una settimana.
-Analysis: You used "ho prendo" to express the meaning of "I took". The correct form of the past tense of "prendere" for the 1st person is "ho preso", so this is a mistake. You wrote "un asperrativa" to translate "a leave of absence". The correct translation is "un'aspettativa". You made a typo in the word "aspettativa" and used a wrong article. The use of "un'" before "aspettativa" is because "aspettativa" begins with a vowel, and the article "un" needs to be combined with an apostrophe to form "un'".
+Translation: I hope you can make it to my party. -> Espero que puedas venir en mi fiesta.
+Suggested word: venir
+Correction: Espero que puedas venir a mi fiesta.
+Explanation of corrections:
+- "en mi fiesta" has been corrected to "a mi fiesta". The error in the original translation is the preposition "en," which is used incorrectly. In this context, "a" should be used to indicate the destination or purpose of attending the party. So, "a mi fiesta" is the correct prepositional phrase to convey that someone is coming to the party.
+- No other corrections were necessary
+
+Translation: I hope at least you can come to the party. -> Spero che almeno arrivi alla festa
+Suggested word: almeno
+Correction: Spero che almeno tu possa venire alla festa.
+Explanation of corrections:
+- "tu possa" is added to maintain the intended meaning of the sentence. In the original sentence, "can" was used to express the ability to come to the party, so "tu possa" is necessary in Italian to convey the same idea.
+- "arrivi" (arrive) is substituted with "venire" (come) to express the ability to come to the party.
+
+Translation: I finished my degree two years ago. -> Termino una carrera dos años
+Suggested word: terminar
+Correction: Terminé la carrera hace dos años.
+Explanation of corrections:
+- "Termino" has been corrected to "Terminé". The original sentence is in the past tense, so the verb should also be in the past tense to indicate that the action of finishing the degree is completed in the past.
+- "una carrera" has been corrected to "la carrera". The original sentence talks about a specific degree, so "la" is used to indicate "the"
+- "dos años" has been corrected to "hace dos años" to correctly indicate "two years ago." The addition of "hace" is essential to convey the time frame in the sentence.
