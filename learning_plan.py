@@ -76,8 +76,9 @@ class LearningPlan:
         next_exercise_word = next_exercise_data['word'].item()
         next_exercise_word_id = next_exercise_data['id'].item()
 
+        user_level = self.user_config.get_user_data(chat_id)['level']
         if 'test' == mode:
-            exercise = WordsExerciseTest(word=next_exercise_word, word_id=next_exercise_word_id, lang=lang)
+            exercise = WordsExerciseTest(word=next_exercise_word, word_id=next_exercise_word_id, lang=lang, level=user_level)
         else:
             exercise = WordsExerciseLearn(word=next_exercise_word, word_id=next_exercise_word_id, lang=lang)
 

@@ -30,16 +30,20 @@ class WordsExerciseLearn(Exercise):
 
 
 class WordsExerciseTest(Exercise):
-    def __init__(self, word, word_id, lang):
+    def __init__(self, word, word_id, lang, level):
         super().__init__()
         self.word = word
         self.word_id = word_id
         self.lang = lang
+        self.level = level
         self.is_first_message_to_user = True
         self.assistant_responses = []
         self.next_query_idx = 0
         with open('resources/words_test_analysis_prompt.txt') as fp:
             self.analysis_pre_prompt = fp.read()
+
+        with open('resources/words_test_exercise_prompt.txt') as fp:
+            self.exercise_pre_prompt = fp.read()
 
     def repeat(self):
         self.is_first_message_to_user = True
@@ -77,17 +81,8 @@ class WordsExerciseTest(Exercise):
 
     def get_next_answer_test_query(self, user_response):
         if self.is_first_message_to_user:
-            query = f'User:\n' \
-                    f'Example of using the italian word or phrase "dimenticare" in everyday life:\n' \
-                    f'Assistant:\n' \
-                    f'Ho dimenticato il telefono a casa.\n' \
-                    f'I forgot my phone at home.\n' \
-                    f'User:\n' \
-                    f'Example of using the german word or phrase "Brieftasche" in everyday life:\n' \
-                    f'Assistant:\n' \
-                    f'Er kaufte eine neue Brieftasche.\n' \
-                    f'He bought a new wallet.\n' \
-                    f'User: Example of using the {self.lang} word or phrase "{self.word}" in everyday life:\n' \
+            query = self.exercise_pre_prompt + '\n\n' + \
+                    f'User: Example of using the {self.lang} word or phrase "{self.word}" in everyday life at {self.level} level of proficiency:\n' \
                     f'Assistant:\n'
 
         else:
