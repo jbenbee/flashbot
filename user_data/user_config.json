@@ -1,6 +1,7 @@
 {
     "<user 1 chat id>": {
     "language": "italian",
+    "level": "B1",
     "max_tokens": 600,
     "exercise_types": ["words", "reading"],
     "word_groups": ["user-defined", "B1-B2"],
@@ -19,6 +20,7 @@
   },
   "<user 2 chat id>": {
     "language": "spanish",
+    "level": "A1",
     "max_tokens": 600,
     "exercise_types": ["words"],
     "word_groups": ["user-defined", "common verbs"],
