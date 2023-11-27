@@ -30,10 +30,10 @@ class UserConfig:
     def get_user_data(self, chat_id):
         return copy.deepcopy(self._user_data[chat_id])
 
-    def set_word_group(self, chat_id, word_group):
-        self._user_data_orig[str(chat_id)]['current_word_group'] = word_group
-        self._user_data[chat_id]['current_word_group'] = word_group
-        data_str = json.dumps(self._user_data_orig, indent='\t')
+    def set_deck(self, chat_id: str, deck_id: int):
+        self._user_data_orig[chat_id]['current_deck_id'] = deck_id
+        self._user_data[int(chat_id)]['current_deck_id'] = deck_id
+        data_str = json.dumps(self._user_data_orig, indent='\t', ensure_ascii=False)
         with open(self.data_path, 'w') as fp:
             fp.write(data_str)
 
