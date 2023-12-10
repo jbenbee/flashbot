@@ -261,7 +261,7 @@ def execute_command_button(chat_id, lang, command, button_data):
         cur_deck_name, cur_deck_id = button_data.split('_')
         cur_deck_id = int(cur_deck_id)
         user_config.set_deck(str(chat_id), cur_deck_id)
-        deck_info = get_deck_info(str(chat_id), lang, cur_deck_id)
+        deck_info = get_deck_info(chat_id, lang, cur_deck_id)
         user_msg = f'Selected deck "{cur_deck_name}".\n'\
                    f'Deck info:\n'\
                    f'{deck_info}'
