@@ -71,7 +71,6 @@ def get_assistant_response(query, tokens):
 
 
 def handle_new_exercise(chat_id, exercise):
-
     tokens = user_config.get_user_data(chat_id)['max_tokens']
     # running_exercises[chat_id] = exercise
     running_exercises.add_exercise(chat_id, exercise)
@@ -223,8 +222,11 @@ def handle_commands(chat_id, lang, command):
             # running_commands[chat_id] = command
             running_commands.add_command(chat_id, command)
             decks = decks_db.get_decks_lang(str(chat_id), lang)
-            buttons = [(deck['id'], deck['name']) for deck in decks]
-            tel_send_message(chat_id, 'Create a new deck by typing its name or select an existing deck:', buttons=buttons)
+            if len(decks) > 0:
+                buttons = [(deck['id'], deck['name']) for deck in decks]
+                tel_send_message(chat_id, 'Create a new deck by typing its name or select an existing deck:', buttons=buttons)
+            else:
+                tel_send_message(chat_id, 'Create a new deck by typing its name')
         else:
             raise ValueError(f'Unknown command {command}')
 
@@ -376,9 +378,9 @@ def handle_request(msg):
                     user_msg = execute_command_button(chat_id, lang, command, data)
                     tel_send_message(chat_id, user_msg)
                 else:
-                    tel_send_message(chat_id, 'Something went wrong, please contact the admin.')
-                    raise Exception(f'The user pressed a button for a command, '
-                                    f'but there are no running commands for user {chat_id}.')
+                    tel_send_message(chat_id, 'The command has already been processed.')
+                    # raise Exception(f'The user pressed a button for a command, '
+                    #                 f'but there are no running commands for user {chat_id}.')
         elif type == 'message':
             handle_user_message(chat_id, lang, tokens, data)
         else:
