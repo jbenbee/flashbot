@@ -50,7 +50,9 @@ class WordsProgressDB:
         chat_word_progress = self.progress_df[(self.progress_df['chat_id'] == chat_id) &
                                               (self.progress_df['word_id'] == word_id)]
         if chat_word_progress.shape[0] == 0:
+            self._lock.release()
             self.add_word_to_progress(chat_id, word_id)
+            self._lock.acquire()
 
         mask = (self.progress_df['chat_id'] == chat_id) & (self.progress_df['word_id'] == word_id)
         if self.progress_df[mask].shape[0] != 1:
@@ -64,13 +66,14 @@ class WordsProgressDB:
         chat_word_progress = self.progress_df[(self.progress_df['chat_id'] == chat_id) &
                                               (self.progress_df['word_id'] == word_id)]
         if chat_word_progress.shape[0] == 0:
+            self._lock.release()
             self.add_word_to_progress(chat_id, word_id)
+            self._lock.acquire()
 
         mask = (self.progress_df['chat_id'] == chat_id) & (self.progress_df['word_id'] == word_id)
         if self.progress_df[mask].shape[0] != 1:
             self._lock.release()
             raise ValueError('Number of rows satisfying the condition must be exactly 1.')
-
         self.progress_df.loc[mask, 'num_reps'] = self.progress_df.loc[mask, 'num_reps'] + 1
         self._lock.release()
 

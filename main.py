@@ -187,7 +187,8 @@ def handle_commands(chat_id, lang, command):
             tel_send_message(chat_id, f'Thinking...')
             exercise = lp.get_next_words_exercise(chat_id, lang, 'learn')
             if exercise is None:
-                tel_send_message(chat_id, 'There are no new words to learn.')
+                tel_send_message(chat_id, f'All the words have already been seen at least {lp.test_threshold} time(s), '
+                                          f'you can only test them now.')
             else:
                 handle_new_exercise(chat_id, exercise)
         elif command == '/next_reading':
@@ -209,8 +210,8 @@ def handle_commands(chat_id, lang, command):
             tel_send_message(chat_id, f'Thinking...')
             known_words = get_known_words(chat_id, lang)
             known_words_str = "\n".join(known_words)
-            tel_send_message(chat_id, f'Number of learned words: {len(known_words)}\n'
-                                      f'List of learned words:\n{known_words_str}')
+            tel_send_message(chat_id, f'Number of known words: {len(known_words)}\n'
+                                      f'List of known words:\n{known_words_str}')
         elif command == '/cur_deck_info':
             cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
             cur_deck_name = decks_db.get_deck_name(cur_deck_id)
@@ -557,7 +558,7 @@ def get_deck_info(chat_id, lang, deck_id):
     deck_words = decks_db.get_deck_words(deck_id)
     n_learned_words = len(get_known_words(chat_id, lang, word_ids=deck_words))
     group_info = f'Total number of words in the deck is {len(deck_words)}.\n' \
-                 f'Number of learned words in the deck is {n_learned_words}.'
+                 f'Number of known words in the deck is {n_learned_words}.'
     return group_info
 
 
