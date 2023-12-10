@@ -21,6 +21,7 @@ import argparse
 
 import openai
 
+from decks_db import DecksDB
 from learning_plan import LearningPlan
 from words_progress_db import WordsProgressDB
 from reading_db import ReadingDB
@@ -195,29 +196,35 @@ def handle_commands(chat_id, lang, command):
             else:
                 handle_new_exercise(chat_id, exercise)
         elif command == '/add_word':
-            running_commands[chat_id] = command
-            tel_send_message(chat_id, 'Type the word that you would like to add.')
+            cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
+            if decks_db.is_deck_owner(str(chat_id), cur_deck_id):
+                running_commands[chat_id] = command
+                tel_send_message(chat_id, 'Type the word that you would like to add.')
+            else:
+                tel_send_message(chat_id, 'You can only add words to the decks that you created.')
         elif command == '/known_words':
             tel_send_message(chat_id, f'Thinking...')
             known_words = get_known_words(chat_id, lang)
             known_words_str = "\n".join(known_words)
             tel_send_message(chat_id, f'Number of learned words: {len(known_words)}\n'
                                       f'List of learned words:\n{known_words_str}')
-        elif command == '/cur_group_info':
-            cur_word_group = user_config.get_user_data(chat_id)['current_word_group']
-            group_info = get_word_group_info(chat_id, lang, cur_word_group)
-            tel_send_message(chat_id, f'Current word group is "{cur_word_group}".\n'
-                                      f'Group info:\n'
-                                      f'{group_info}')
-        elif command == '/sel_word_group':
+        elif command == '/cur_deck_info':
+            cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
+            cur_deck_name = decks_db.get_deck_name(cur_deck_id)
+            deck_info = get_deck_info(chat_id, lang, cur_deck_id)
+            tel_send_message(chat_id, f'Current deck is "{cur_deck_name}".\n'
+                                      f'Deck info:\n'
+                                      f'{deck_info}')
+        elif command == '/sel_deck':
             running_commands[chat_id] = command
-            buttons = [(None, group) for group in user_config.get_user_data(chat_id)['word_groups']]
-            tel_send_message(chat_id, 'Select a word group:', buttons=buttons)
+            decks = decks_db.get_decks_lang(str(chat_id), lang)
+            buttons = [(deck['id'], deck['name']) for deck in decks]
+            tel_send_message(chat_id, 'Create a new deck by typing its name or select an existing deck:', buttons=buttons)
         else:
             raise ValueError(f'Unknown command {command}')
 
 
-def handle_button_press(chat_id, lang, udata, exercise):
+def handle_exercise_button_press(chat_id, lang, udata, exercise):
     print(f'Received a button: {udata}')
     button_id = udata.split('_')[-1]
     if button_id != exercise.uid:
@@ -248,23 +255,39 @@ def handle_button_press(chat_id, lang, udata, exercise):
             raise ValueError(f'Unknown exercise type: {type(exercise)}.')
 
 
-def execute_command(chat_id, lang, command, msg):
-    if command == '/add_word':
-        # extract word and word group
-        word = msg.strip()
-        cur_word_group = user_config.get_user_data(chat_id)['current_word_group']
-        words_db.add_new_word(word, cur_word_group, lang, chat_id)
-        words_db.save_words_db()
-        user_msg = f'Word "{word}" is successfully added to word group "{cur_word_group}".'
-    elif command == '/sel_word_group':
-        cur_word_group = msg
-        user_config.set_word_group(chat_id, cur_word_group)
-        group_info = get_word_group_info(chat_id, lang, cur_word_group)
-        user_msg = f'Selected word group "{msg}".\n'\
-                   f'Group info:\n'\
-                   f'{group_info}'
+def execute_command_button(chat_id, lang, command, button_data):
+    if command == '/sel_deck':
+        # choose an existing deck
+        cur_deck_name, cur_deck_id = button_data.split('_')
+        cur_deck_id = int(cur_deck_id)
+        user_config.set_deck(str(chat_id), cur_deck_id)
+        deck_info = get_deck_info(chat_id, lang, cur_deck_id)
+        user_msg = f'Selected deck "{cur_deck_name}".\n'\
+                   f'Deck info:\n'\
+                   f'{deck_info}'
     else:
-        raise ValueError(f'Unknown command {command}.')
+        raise ValueError(f'Unexpected command {command}.')
+    return user_msg
+
+
+def execute_command_message(chat_id, lang, command, msg):
+    if command == '/add_word':
+        word = msg.strip()
+        cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
+        word_id = words_db.add_new_word(word, lang)
+        decks_db.add_new_word(cur_deck_id, word_id)
+        words_db.save_words_db()
+        decks_db.save_decks_db()
+        cur_deck = decks_db.get_deck_name(cur_deck_id)
+        user_msg = f'Word "{word}" is successfully added to deck "{cur_deck}".'
+    elif command == '/sel_deck':
+        # create a new deck
+        deck_id = decks_db.create_deck(str(chat_id), msg, lang)
+        user_config.set_deck(str(chat_id), deck_id)
+        decks_db.save_decks_db()
+        user_msg = f'Created deck "{msg}" and set is as a current deck.'
+    else:
+        raise ValueError(f'Unexpected command {command}.')
     return user_msg
 
 
@@ -273,7 +296,7 @@ def handle_user_message(chat_id, lang, tokens, msg):
     if chat_id in running_commands.keys():
         # handle an input for a command
         command = running_commands.pop(chat_id)
-        user_msg = execute_command(chat_id, lang, command, msg)
+        user_msg = execute_command_message(chat_id, lang, command, msg)
         tel_send_message(chat_id, user_msg)
     elif chat_id in running_exercises.keys():
         exercise = running_exercises.pop(chat_id)
@@ -333,18 +356,18 @@ def index():
                         running_commands.pop(chat_id)
                     if chat_id in running_exercises.keys():
                         exercise = running_exercises[chat_id]
-                        handle_button_press(chat_id, lang, data, exercise)
+                        handle_exercise_button_press(chat_id, lang, data, exercise)
                     else:
                         tel_send_message(chat_id, 'Sorry, the exercise has been completed or is expired.')
                 else:
                     # user pressed a button required to complete a command
                     if chat_id in running_commands.keys():
                         command = running_commands.pop(chat_id)
-                        user_msg = execute_command(chat_id, lang, command, data)
+                        user_msg = execute_command_button(chat_id, lang, command, data)
                         tel_send_message(chat_id, user_msg)
                     else:
                         tel_send_message(chat_id, 'Something went wrong, please contact the admin.')
-                        raise Exception(f'I think that the user pressed a button for a command, '
+                        raise Exception(f'The user pressed a button for a command, '
                                         f'but there are no running commands for user {chat_id}.')
             elif type == 'message':
                 handle_user_message(chat_id, lang, tokens, data)
@@ -481,29 +504,27 @@ def set_webhook(port, secret_token, url):
     return proc
 
 
-def get_known_words(chat_id, lang, group=None):
+def get_known_words(chat_id, lang, word_ids=None):
     words_df = words_db.get_words_df()
     progress_df = words_progress_db.get_progress_df()
     progress_words_df = pd.merge(progress_df, words_df, how='left', left_on='word_id',
                                  right_on='id', sort=False, validate='1:1')
 
+    words_mask = progress_words_df['id'].isin(word_ids) if word_ids is not None else np.ones(progress_words_df.shape[0])
+
     pw_df = progress_words_df.loc[(progress_words_df['chat_id'] == chat_id) &
                                   (progress_words_df['lang'] == lang) &
+                                  words_mask &
                                   progress_words_df['is_known']]
-    if group is None:
-        words = pw_df['word'].to_list()
-    else:
-        words = pw_df.loc[pw_df['group'] == group, 'word'].to_list()
+    words = pw_df['word'].to_list()
     return words
 
 
-def get_word_group_info(chat_id, lang, group):
-    user_data = user_config.get_user_data(chat_id)
-    wdf = words_db.get_words_df()
-    gr_lang_words = wdf.loc[(wdf['lang'] == user_data['language']) & (wdf['group'] == group)].shape[0]
-    n_learned_words = len(get_known_words(chat_id, lang, group))
-    group_info = f'Total number of words in the group is {gr_lang_words}.\n' \
-                 f'Number of learned words in the group is {n_learned_words}.'
+def get_deck_info(chat_id, lang, deck_id):
+    deck_words = decks_db.get_deck_words(deck_id)
+    n_learned_words = len(get_known_words(chat_id, lang, word_ids=deck_words))
+    group_info = f'Total number of words in the deck is {len(deck_words)}.\n' \
+                 f'Number of learned words in the deck is {n_learned_words}.'
     return group_info
 
 
@@ -552,24 +573,23 @@ if __name__ == '__main__':
             openai.api_key = lines[0].strip()
             openai.organization = lines[1].strip()
 
-    words_db_path = os.getenv('CH_WORDS_DB_PATH')
-    words_db_path = 'resources/words_db.csv' if words_db_path is None else words_db_path
-
-    reading_db_path = os.getenv('CH_READING_DB_PATH')
-    reading_db_path = 'resources/reading_lists.json' if reading_db_path is None else reading_db_path
-
-    words_progress_db_path = os.getenv('CH_WORDS_PROGRESS_DB_PATH')
-    words_progress_db_path = 'user_data/words_progress_db.csv' if words_progress_db_path is None else words_progress_db_path
-
-    user_config_path = os.getenv('CH_USER_CONFIG_PATH')
-    user_config_path = 'user_data/user_config.json' if user_config_path is None else user_config_path
+    user_data_root = os.getenv('CH_USER_DATA_ROOT')
+    user_data_root = 'resources' if user_data_root is None else user_data_root
+    user_data_root = Path(user_data_root)
+    words_db_path = user_data_root / 'words_db.csv'
+    decks_db_path = user_data_root / 'decks_db.csv'
+    deck_word_db_path = user_data_root / 'deck_word.csv'
+    reading_db_path = user_data_root / 'reading_lists.json'
+    words_progress_db_path = user_data_root / 'words_progress_db.csv'
+    user_config_path = user_data_root / 'user_config.json'
 
     words_db = WordsDB(words_db_path)
+    decks_db = DecksDB(decks_db_path, deck_word_db_path)
     reading_db = ReadingDB(reading_db_path)
     words_progress_db = WordsProgressDB(words_progress_db_path)
     user_config = UserConfig(user_config_path)
 
-    lp = LearningPlan(words_progress_db=words_progress_db, words_db=words_db,
+    lp = LearningPlan(words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db,
                       reading_db=reading_db, user_config=user_config)
 
     # list of known exercise buttons

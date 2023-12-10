@@ -7,9 +7,10 @@ from words_exercise import WordsExerciseLearn, WordsExerciseTest
 
 
 class LearningPlan:
-    def __init__(self, words_progress_db=None, words_db=None, reading_db=None, user_config=None):
+    def __init__(self, words_progress_db=None, words_db=None, decks_db=None, reading_db=None, user_config=None):
         self.progress_db = words_progress_db
         self.words_db = words_db
+        self.decks_db = decks_db
         self.reading_db = reading_db
         self.user_config = user_config
 
@@ -32,15 +33,15 @@ class LearningPlan:
 
         words_df = self.words_db.get_words_df()
 
-        # choose word groups specific to the user
-        current_word_group = self.user_config.get_user_data(chat_id)['current_word_group']
-        user_words_df = words_df.loc[words_df['group'] == current_word_group]
+        # choose words from the deck
+        current_deck_id = self.user_config.get_user_data(chat_id)['current_deck_id']
+        deck_words_df = words_df.loc[words_df['id'].isin(self.decks_db.get_deck_words(current_deck_id))]
 
-        if user_words_df.shape[0] == 0:
+        if deck_words_df.shape[0] == 0:
             return None
 
         progress_df = self.progress_db.get_progress_df()
-        progress_words_df = pd.merge(progress_df, user_words_df, how='outer', left_on='word_id',
+        progress_words_df = pd.merge(progress_df, deck_words_df, how='outer', left_on='word_id',
                                      right_on='id', sort=False)
         not_ignored_words = progress_words_df.loc[(progress_words_df['lang'] == lang.lower()) &
                                                   progress_words_df['to_ignore'].isin([False, np.nan])]
