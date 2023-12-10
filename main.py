@@ -29,6 +29,8 @@ from reading_exercise import ReadingExercise
 from user_config import UserConfig
 from words_db import WordsDB
 from words_exercise import WordsExerciseLearn, WordsExerciseTest
+from running_commands import RunningCommands
+from running_exercises import RunningExercises
 
 
 app = Flask(__name__)
@@ -71,7 +73,8 @@ def get_assistant_response(query, tokens):
 def handle_new_exercise(chat_id, exercise):
 
     tokens = user_config.get_user_data(chat_id)['max_tokens']
-    running_exercises[chat_id] = exercise
+    # running_exercises[chat_id] = exercise
+    running_exercises.add_exercise(chat_id, exercise)
     if isinstance(exercise, WordsExerciseLearn):
         increment_word_reps(chat_id, exercise.word_id)
         words_progress_db.save_progress()
@@ -101,7 +104,7 @@ def handle_new_exercise(chat_id, exercise):
 
 
 def ping_user(chat_id, lang, exercise_type, exercise_data):
-    lock.acquire()
+    # lock.acquire()
     if exercise_type == 'reading':
         exercise = lp.get_next_reading_exercise(chat_id, lang, topics=exercise_data)
     elif exercise_type == 'words':
@@ -117,7 +120,7 @@ def ping_user(chat_id, lang, exercise_type, exercise_data):
         print(f'There are no exercises of type {exercise_type} for data {exercise_data}.')
     else:
         handle_new_exercise(chat_id, exercise)
-    lock.release()
+    # lock.release()
 
 
 def parse_message(message):
@@ -198,7 +201,8 @@ def handle_commands(chat_id, lang, command):
         elif command == '/add_word':
             cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
             if decks_db.is_deck_owner(str(chat_id), cur_deck_id):
-                running_commands[chat_id] = command
+                # running_commands[chat_id] = command
+                running_commands.add_command(chat_id, command)
                 tel_send_message(chat_id, 'Type the word that you would like to add.')
             else:
                 tel_send_message(chat_id, 'You can only add words to the decks that you created.')
@@ -216,7 +220,8 @@ def handle_commands(chat_id, lang, command):
                                       f'Deck info:\n'
                                       f'{deck_info}')
         elif command == '/sel_deck':
-            running_commands[chat_id] = command
+            # running_commands[chat_id] = command
+            running_commands.add_command(chat_id, command)
             decks = decks_db.get_decks_lang(str(chat_id), lang)
             buttons = [(deck['id'], deck['name']) for deck in decks]
             tel_send_message(chat_id, 'Create a new deck by typing its name or select an existing deck:', buttons=buttons)
@@ -293,13 +298,17 @@ def execute_command_message(chat_id, lang, command, msg):
 
 def handle_user_message(chat_id, lang, tokens, msg):
 
-    if chat_id in running_commands.keys():
+    # if chat_id in running_commands.keys():
+    if chat_id in running_commands.chat_ids:
         # handle an input for a command
-        command = running_commands.pop(chat_id)
+        # command = running_commands.pop(chat_id)
+        command = running_commands.pop_command(chat_id)
         user_msg = execute_command_message(chat_id, lang, command, msg)
         tel_send_message(chat_id, user_msg)
-    elif chat_id in running_exercises.keys():
-        exercise = running_exercises.pop(chat_id)
+    # elif chat_id in running_exercises.keys():
+    #     exercise = running_exercises.pop(chat_id)
+    elif chat_id in running_exercises.chat_ids:
+        exercise = running_exercises.pop_exercise(chat_id)
 
         tel_send_message(chat_id, 'Thinking...')
         next_query, is_last_query = exercise.get_next_assistant_query(user_response=msg)
@@ -324,6 +333,67 @@ def handle_user_message(chat_id, lang, tokens, msg):
         print(f'No running commands or exercises, ignore user message: {msg}')
 
 
+def release_all_locks():
+    for shared_obj in shared_objs:
+        shared_obj.release_lock()
+
+
+def handle_request(msg):
+    chat_id, type, data = parse_message(msg)
+    print(f'{chat_id} message: {data}')
+
+    lang = user_config.get_user_data(chat_id)['language']
+    tokens = user_config.get_user_data(chat_id)['max_tokens']
+
+    # lock.acquire()
+    try:
+        if type == 'command':
+            # if chat_id in running_exercises.keys():
+            if chat_id in running_exercises.chat_ids:
+                # if there were any running exercises, remove them after a command has been pressed
+                # running_exercises.pop(chat_id)
+                running_exercises.pop_exercise(chat_id)
+            handle_commands(chat_id, lang, data)
+        elif type == 'button':
+            button_text = data.split('_')[0]
+            if button_text in exercise_buttons:
+                # user pressed a button for an exercise
+                # if chat_id in running_commands.keys():
+                if chat_id in running_commands.chat_ids:
+                    # if there were any running commands, remove them when the user interacts with an exercise
+                    running_commands.pop_command(chat_id)
+                if chat_id in running_exercises.chat_ids:
+                    exercise = running_exercises.current_exercise(chat_id)
+                    handle_exercise_button_press(chat_id, lang, data, exercise)
+                else:
+                    tel_send_message(chat_id, 'Sorry, the exercise has been completed or is expired.')
+            else:
+                # user pressed a button required to complete a command
+                # if chat_id in running_commands.keys():
+                #     command = running_commands.pop(chat_id)
+                if chat_id in running_commands.chat_ids():
+                    command = running_commands.pop_command(chat_id)
+                    user_msg = execute_command_button(chat_id, lang, command, data)
+                    tel_send_message(chat_id, user_msg)
+                else:
+                    tel_send_message(chat_id, 'Something went wrong, please contact the admin.')
+                    raise Exception(f'The user pressed a button for a command, '
+                                    f'but there are no running commands for user {chat_id}.')
+        elif type == 'message':
+            handle_user_message(chat_id, lang, tokens, data)
+        else:
+            raise ValueError(f'Unknown message type {type}, {data}')
+    except Exception as e:
+        # if chat_id in running_commands.keys(): running_commands.pop(chat_id)
+        # if chat_id in running_exercises.keys(): running_exercises.pop(chat_id)
+        if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
+        if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
+        release_all_locks()
+        print(e)
+        tel_send_message(chat_id, f'Something went terribly wrong, please try again or notify the admin.')
+    # lock.release()
+
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -334,51 +404,11 @@ def index():
         elif headers['X-Telegram-Bot-Api-Secret-Token'] != secret_token:
             print('Secret token does not match')
             return 'Error'
-        msg = request.get_json()
-        chat_id, type, data = parse_message(msg)
-        lang = user_config.get_user_data(chat_id)['language']
-        tokens = user_config.get_user_data(chat_id)['max_tokens']
-        print(f'{chat_id} message: {data}')
 
-        lock.acquire()
-        try:
-            if type == 'command':
-                if chat_id in running_exercises.keys():
-                    # if there were any running exercises, remove them after a command has been pressed
-                    running_exercises.pop(chat_id)
-                handle_commands(chat_id, lang, data)
-            elif type == 'button':
-                button_text = data.split('_')[0]
-                if button_text in exercise_buttons:
-                    # user pressed a button for an exercise
-                    if chat_id in running_commands.keys():
-                        # if there were any running commands, remove them when the user interacts with an exercise
-                        running_commands.pop(chat_id)
-                    if chat_id in running_exercises.keys():
-                        exercise = running_exercises[chat_id]
-                        handle_exercise_button_press(chat_id, lang, data, exercise)
-                    else:
-                        tel_send_message(chat_id, 'Sorry, the exercise has been completed or is expired.')
-                else:
-                    # user pressed a button required to complete a command
-                    if chat_id in running_commands.keys():
-                        command = running_commands.pop(chat_id)
-                        user_msg = execute_command_button(chat_id, lang, command, data)
-                        tel_send_message(chat_id, user_msg)
-                    else:
-                        tel_send_message(chat_id, 'Something went wrong, please contact the admin.')
-                        raise Exception(f'The user pressed a button for a command, '
-                                        f'but there are no running commands for user {chat_id}.')
-            elif type == 'message':
-                handle_user_message(chat_id, lang, tokens, data)
-            else:
-                raise ValueError(f'Unknown message type {type}, {data}')
-        except Exception as e:
-            if chat_id in running_commands.keys(): running_commands.pop(chat_id)
-            if chat_id in running_exercises.keys(): running_exercises.pop(chat_id)
-            print(e)
-            tel_send_message(chat_id, f'Something went terribly wrong, please try again or notify the admin.')
-        lock.release()
+        msg = request.get_json()
+
+        x = threading.Thread(target=lambda: handle_request(msg), daemon=True)
+        x.start()
         return 'ok'
     else:
         return "<h1>Welcome!</h1>"
@@ -389,7 +419,8 @@ def exithandler(signal_received, frame, proc):
     print('SIGINT or CTRL-C detected. Exiting gracefully')
 
     # store running exercises
-    joblib.dump(running_exercises, filename=running_exercises_file)
+    # joblib.dump(running_exercises, filename=running_exercises_file)
+    running_exercises.backup()
 
     if proc is not None:
         proc.kill()
@@ -543,22 +574,25 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--local", action='store_true', help="Run locally")
     parser.add_argument("--webhook", type=str, help="Webhook for telegram")
+
     args = parser.parse_args()
 
     if not args.local and args.webhook is None:
         print('Webhook must be specified when not running locally.')
         exit()
 
-    lock = threading.Lock()
+    # lock = threading.Lock()
 
-    running_commands = dict()
+    # running_commands = dict()
+    running_commands = RunningCommands()
     running_exercises_file = 'running_exercise.jb'
-    if os.path.exists(running_exercises_file):
-        # store running exercises
-        running_exercises = joblib.load(filename=running_exercises_file)
-        os.remove(running_exercises_file)
-    else:
-        running_exercises = dict()
+    # if os.path.exists(running_exercises_file):
+    #     # store running exercises
+    #     running_exercises = joblib.load(filename=running_exercises_file)
+    #     os.remove(running_exercises_file)
+    # else:
+    #     running_exercises = dict()
+    running_exercises = RunningExercises(running_exercises_file)
 
     bot_token = os.getenv('BOT_TOKEN')
     if bot_token is None:
@@ -592,6 +626,8 @@ if __name__ == '__main__':
     lp = LearningPlan(words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db,
                       reading_db=reading_db, user_config=user_config)
 
+    shared_objs = [user_config, words_db, words_progress_db, decks_db, running_exercises, running_commands]
+
     # list of known exercise buttons
     exercise_buttons = ['Ignore this word', 'Hint', 'Correct answer', 'I know this word']
 
@@ -603,4 +639,5 @@ if __name__ == '__main__':
 
     handle_job_queue(user_config)
 
+    host = "0.0.0.0"
     serve(app, host="0.0.0.0", port=port, url_scheme='https')
