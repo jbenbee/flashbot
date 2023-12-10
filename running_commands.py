@@ -36,5 +36,5 @@ class RunningCommands:
         return command
 
     def release_lock(self):
-        if not self._lock.locked():
+        if self._lock.locked():
             self._lock.release()

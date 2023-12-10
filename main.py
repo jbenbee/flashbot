@@ -371,7 +371,7 @@ def handle_request(msg):
                 # user pressed a button required to complete a command
                 # if chat_id in running_commands.keys():
                 #     command = running_commands.pop(chat_id)
-                if chat_id in running_commands.chat_ids():
+                if chat_id in running_commands.chat_ids:
                     command = running_commands.pop_command(chat_id)
                     user_msg = execute_command_button(chat_id, lang, command, data)
                     tel_send_message(chat_id, user_msg)
