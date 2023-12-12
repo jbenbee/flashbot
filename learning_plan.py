@@ -14,6 +14,10 @@ class LearningPlan:
         self.reading_db = reading_db
         self.user_config = user_config
 
+        # Words that are repeated at least this many times will be used for testing exercises,
+        # others will be used for learning exercises.
+        self.test_threshold = 2
+
     def get_next_reading_exercise(self, chat_id, lang, topics=None):
         reading_data = self.reading_db.get_reading_data()
         if topics is None:
@@ -26,10 +30,6 @@ class LearningPlan:
         return exercise
 
     def get_next_words_exercise(self, chat_id, lang, mode):
-
-        # Words that are repeated at least this many times will be used for testing exercises,
-        # others will be used for learning exercises.
-        test_threshold = 2
 
         words_df = self.words_db.get_words_df()
 
@@ -46,7 +46,7 @@ class LearningPlan:
         not_ignored_words = progress_words_df.loc[(progress_words_df['lang'] == lang.lower()) &
                                                   progress_words_df['to_ignore'].isin([False, np.nan])]
 
-        test_words_mask = not_ignored_words['num_reps'] >= test_threshold
+        test_words_mask = not_ignored_words['num_reps'] >= self.test_threshold
         test_words = not_ignored_words.loc[test_words_mask]
 
         test_weights = [max(1/v[1], 0.001) for v in test_words['num_reps'].items()]
