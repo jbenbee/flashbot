@@ -201,7 +201,6 @@ def handle_commands(chat_id, lang, command):
         elif command == '/add_word':
             cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
             if decks_db.is_deck_owner(str(chat_id), cur_deck_id):
-                # running_commands[chat_id] = command
                 running_commands.add_command(chat_id, command)
                 tel_send_message(chat_id, 'Type the word that you would like to add.')
             else:
@@ -220,7 +219,6 @@ def handle_commands(chat_id, lang, command):
                                       f'Deck info:\n'
                                       f'{deck_info}')
         elif command == '/sel_deck':
-            # running_commands[chat_id] = command
             running_commands.add_command(chat_id, command)
             decks = decks_db.get_decks_lang(str(chat_id), lang)
             if len(decks) > 0:
@@ -304,7 +302,6 @@ def handle_user_message(chat_id, lang, tokens, msg):
     # if chat_id in running_commands.keys():
     if chat_id in running_commands.chat_ids:
         # handle an input for a command
-        # command = running_commands.pop(chat_id)
         command = running_commands.pop_command(chat_id)
         user_msg = execute_command_message(chat_id, lang, command, msg)
         tel_send_message(chat_id, user_msg)

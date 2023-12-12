@@ -63,3 +63,4 @@ class DecksDB:
     def release_lock(self):
         if self._lock.locked():
             self._lock.release()
+
