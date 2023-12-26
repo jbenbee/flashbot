@@ -1,7 +1,10 @@
+import re
 import threading
 
 import numpy as np
 import pandas as pd
+
+import spacy
 
 
 class WordsDB:
@@ -11,6 +14,17 @@ class WordsDB:
         self.words_df['id'] = self.words_df['id'].astype(int)
         if not self.words_df['id'].is_unique:
             raise ValueError('"id" field in the words database is not unique.')
+        self.supported_languages = ['italian', 'russian', 'spanish']
+        self.alphabets = {
+            'italian': 'ABCDEFGHIJKLMNOPQRSTUVWXYZÉÍÓÙabcdefghijklmnopqrstuvwxyzéíóù',
+            'spanish': 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑabcdefghijklmnopqrstuvwxyzáéíóúüñ',
+            'russian': 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя'
+        }
+        self.spacy_lib = {
+            'spanish': 'es_dep_news_trf',
+            'italian': 'it_core_news_lg',
+            'russian': 'ru_core_news_sm', #'ru_core_news_lg'  TODO
+        }
         self._lock = threading.Lock()
 
     def save_words_db(self):
@@ -48,3 +62,16 @@ class WordsDB:
     def release_lock(self):
         if self._lock.locked():
             self._lock.release()
+
+    def add_words(self, lang, corpus):
+        nlp = spacy.load(self.spacy_lib[lang])
+        doc = nlp(corpus)
+        tokens = set()
+        for token in doc:
+            alphabet = self.alphabets[lang]
+            if re.match(fr'^[{alphabet}]+$', str(token)) is None:
+                continue
+            if token.pos_ not in ['VERB', 'NOUN', 'ADJ', 'ADV', 'SCONJ']:
+                continue
+            tokens.add(token.lemma_)
+        print(tokens)
