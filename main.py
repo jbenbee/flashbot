@@ -91,14 +91,16 @@ def handle_new_exercise(chat_id, exercise):
             print(f'Wrong response: {assistant_response}\nRe-requesting...')
             assistant_response = get_assistant_response(next_query, tokens)
 
-    if nattempts == max_attempts and not responded_correctly:
-        message = 'Sorry, the assistant raised some error while processing this request. Please retry.'
-
     buttons = None
     if isinstance(exercise, WordsExerciseLearn):
         buttons = [(exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
     if isinstance(exercise, WordsExerciseTest):
         buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer')]
+
+    if nattempts == max_attempts and not responded_correctly:
+        message = 'Sorry, the assistant raised some error while processing this request. Please retry.'
+        buttons = None
+
     tel_send_message(chat_id, message, buttons=buttons)
 
 
