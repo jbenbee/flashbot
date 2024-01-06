@@ -13,6 +13,8 @@ import re
 import joblib
 import numpy as np
 import pandas as pd
+import spacy
+import wiktionaryparser
 from flask import Flask
 from flask import request
 from waitress import serve
@@ -36,7 +38,7 @@ from running_exercises import RunningExercises
 app = Flask(__name__)
 
 
-def get_assistant_response(query, tokens):
+def get_assistant_response(query, tokens, temperature=None):
     if client != 'openai':
         raise ValueError(f'Unknown client {client}')
 
@@ -50,7 +52,8 @@ def get_assistant_response(query, tokens):
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=messages,
-                max_tokens=tokens
+                max_tokens=tokens,
+                temperature=temperature
             )
             break
         except openai.error.OpenAIError:
@@ -570,6 +573,130 @@ def increment_word_reps(chat_id, word_id):
         words_progress_db.add_known_word(chat_id, word_id)
 
 
+def get_corpus(lang, topic):
+    n_queries = 3
+    path = Path(f'resources/word_corpus/{lang}/{topic}')
+    corpus_path = path / 'corpus'
+    os.makedirs(corpus_path, exist_ok=True)
+    responses = []
+    templates = [
+        f"Write a dialogue in <LANG> on the topic '<TOPIC>'. Do not add english translation.",
+        # f"Write an example text on the topic '<TOPIC>' in <LANG>. Do not add english translation."
+    ]
+    if os.path.exists(corpus_path) and len(os.listdir(corpus_path)) > 0:
+        files = os.listdir(corpus_path)
+        for fpath in files:
+            with open(corpus_path / fpath, 'r', encoding='utf-8') as fp:
+                responses.append(fp.read())
+    else:
+        queries = []
+        for query_template in templates:
+            query = query_template.replace('<LANG>', lang)
+            query = query.replace('<TOPIC>', topic)
+            queries += [query] * n_queries
+
+        for qidx, query in enumerate(queries):
+            res = get_assistant_response(query, tokens=600)
+            with open(corpus_path / f'{qidx+1}.txt', 'w', encoding='utf-8') as fp:
+                fp.write(res)
+            responses.append(res)
+
+    return responses
+
+
+def check_words_response(response_raw):
+    response_raw = response_raw.strip()
+    res = len(response_raw.split()) < 100 and (('(' not in response_raw) and (')' not in response_raw) and ('language model' not in response_raw))
+    return res
+
+
+def suggest_words(lang, topics):
+    wiktionary_lang_map = {'italian': 'italian', 'spanish': 'spanish'}
+    parser = wiktionaryparser.WiktionaryParser()
+    for rel in wiktionaryparser.RELATIONS: parser.exclude_relation(rel)
+    all_words = []
+    topic_words = dict()
+    for topic in topics:
+        topic_words[topic] = []
+        path = Path(f'resources/word_corpus/{lang}/{topic}')
+        words_path = path / 'words'
+        os.makedirs(words_path, exist_ok=True)
+        all_corpus = get_corpus(lang, topic)
+        for cidx, corpus in enumerate(all_corpus):
+            corpus_words = []
+            wpath = words_path / f'{cidx + 1}.txt'
+            if os.path.exists(wpath):
+                with open(wpath, 'r', encoding='utf-8') as fp:
+                    corpus_words = [entry.strip() for entry in fp.readlines()]
+            else:
+                n_attempts = 5
+
+                with open('resources/word_gen_prompt.txt', 'r', encoding='utf-8') as fp:
+                    pre_prompt = fp.read()
+
+                queries = {'verb': f'{pre_prompt}\n\nList all {lang} verbs that appear in the text below in infinitive form, one per line: {corpus}',
+                           'noun': f'{pre_prompt}\n\nList all {lang} nouns that appear in the text below in singular form, one per line: {corpus}',
+                           'adjective': f'{pre_prompt}\n\nList all {lang} adjectives that appear in the text below in a masculine form, one per line: {corpus}',
+                           'adverb': f'{pre_prompt}\n\nList all {lang} adverbs that appear in the text below, one per line: {corpus}'
+                }
+
+                for pos, query in queries.items():
+                    print(pos)
+                    cur_words = []
+                    for aidx in range(n_attempts):
+                        response_raw = get_assistant_response(query, tokens=600)
+                        if check_words_response(response_raw):
+                            cur_words = response_raw.split('\n')
+                            cur_words = [word.replace('"', '').strip() for word in cur_words if len(word) > 3]
+                            break
+                        else:
+                            print(f'wrong response: {response_raw}')
+
+                    # filter words
+                    filtered_words = []
+                    skipped_words = set()
+                    for word in cur_words:
+                        if word in skipped_words: continue
+                        if word in corpus_words or word in all_words or word in filtered_words:
+                            filtered_words.append(word)
+                            continue
+                        word_added = False
+                        parsed_word = parser.fetch(word, wiktionary_lang_map[lang])
+                        for meaning in parsed_word:
+                            for definition in meaning['definitions']:
+                                if pos == definition['partOfSpeech']:
+                                    filtered_words.append(word.lower())
+                                    word_added = True
+                                    break
+                            if word_added: break
+                        if not word_added:
+                            skipped_words.add(word)
+                            print(f'skipped word: {word}')
+
+                    print(f'filtered words: {filtered_words}')
+                    corpus_words += filtered_words
+
+                with open(wpath, 'w', encoding='utf-8') as fp:
+                    fp.write('\n'.join(corpus_words))
+
+            topic_words[topic] += corpus_words
+        all_words += topic_words[topic]
+
+    tokens = all_words
+    tokens_freq = {elem: tokens.count(elem) for elem in tokens}
+
+    # n_words = 100
+    sorted_word_freq = sorted(tokens_freq.items(), key=lambda entry: entry[1], reverse=True)
+    all_words_freq = sorted_word_freq #[:n_words]
+    # last_word_freq = words_to_add[-1][1]
+    # last_freq_words = [(word, freq) for word, freq in sorted_word_freq[n_words:] if freq == last_word_freq]
+    # words_to_add += last_freq_words
+
+    print(all_words_freq)
+
+    return all_words_freq, topic_words
+
+
 if __name__ == '__main__':
     client = 'openai'
 
@@ -632,6 +759,44 @@ if __name__ == '__main__':
 
     # list of known exercise buttons
     exercise_buttons = ['Ignore this word', 'Hint', 'Correct answer', 'I know this word']
+
+    default_decks ={
+              'introducing yourself': 'introduce yourself',
+              'meeting a new person': 'meet a new person',
+              'eating out': 'ordering food in a restaurant or bar',
+              'grocery shopping': 'buying food in a supermarket',
+              'work and study': 'describe what you do for work or study',
+              'daily routine': 'describe your daily routine',
+              'holidays and vacation': 'describe your holidays or vacation',
+              'commute': 'how do you commute to work, supermarket, university or similar',
+              'home': 'describe your house or apartment',
+              'searching for a home': 'search for a house or apartment to rent or buy',
+              'favourite dish': 'describe your favourite dish',
+              'free time': 'what do you do in your free time',
+              'hobbies': 'describe your hobbies',
+              'movies': 'discuss your favourite movies',
+              'sport': 'discuss your favourite sport',
+              'pets': 'describe your pets',
+              'books': 'discuss your favourite books',
+              'music': 'discuss your favourite music',
+              'cooking': 'describe cooking or baking a dish',
+              'in a bank': 'typical situation in a bank',
+              'at a post office': 'typical situation at a post office',
+              'public transport': 'typical situation in a bus, metro or a tram',
+              'in a train': 'typical situation in a train',
+              'on a train station': 'typical situation on a train station',
+              'in a restautant': 'typical situation in a restaurant',
+              'in a university': 'typical situation in a university',
+              'at work': 'typical situation at work',
+              }
+    # for topic in topics:
+    suggested_words = suggest_words('italian', default_decks.values())
+
+    # new_word_ids = words_db.add_new_words(words_to_add)
+    # for deck in default_decks.keys:
+    #     new_deck_id = decks_db.create_deck(str(chat_id), topic, lang)
+    #     decks_db.add_new_words(new_deck_id, new_word_ids)
+    exit()
 
     port = 5001
     hookproc = None
