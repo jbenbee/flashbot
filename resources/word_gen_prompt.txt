@@ -1,0 +1,125 @@
+List all verbs that appear in the following text:
+Text:
+Anna und Tom waren gerade in ihre erste gemeinsame Wohnung gezogen und freuten sich darauf, sie gemütlich einzurichten. Ein großer Teil ihrer Zeit ging für die Suche nach neuen Möbeln drauf.
+Sie beschlossen, zuerst nach einem bequemen Sofa zu suchen. Gemeinsam besuchten sie verschiedene Möbelgeschäfte in der Stadt. Nachdem sie viele Modelle ausprobiert hatten, fanden sie endlich eines, das sowohl stylish als auch gemütlich war. Es war perfekt für ihre Wohnzimmeratmosphäre.
+Der nächste Halt war ein Möbelgeschäft, das sich auf Esstische und Stühle spezialisiert hatte. Anna und Tom wollten einen Tisch, an dem sie nicht nur essen, sondern auch arbeiten konnten. Nach einiger Zeit des Vergleichens und Abwägens entschieden sie sich für einen modernen Esstisch mit passenden Stühlen.
+Für das Schlafzimmer suchten sie nach einem geräumigen Kleiderschrank und einem bequemen Bett. In einem Möbelhaus fanden sie einen Kleiderschrank mit vielen Fächern und Schubladen, der perfekt in ihre Schlafzimmerecke passte. Das Bett, das sie auswählten, hatte eine weiche Matratze, die für erholsamen Schlaf sorgen würde.
+Der letzte Stopp war ein Einrichtungsladen, in dem sie nach kleinen Details suchten, um ihre Wohnung persönlicher zu gestalten. Sie fanden dekorative Kissen, schöne Vorhänge und einige Bilder, die gut zu ihrem Stil passten.
+Nach einem anstrengenden, aber aufregenden Tag kehrten Anna und Tom glücklich in ihre neue Wohnung zurück. Mit den neuen Möbeln fühlte sich ihr Zuhause endlich komplett an, und sie freuten sich darauf, dort viele glückliche Momente zu erleben.
+Response:
+ziehen
+freuen
+einrichten
+gehen
+suchen
+ausprobieren
+finden
+sein
+suchen
+besuchen
+spezialisieren
+wollen
+können
+entscheiden
+vergleichen
+abwägen
+suchen
+finden
+passen
+auswählen
+haben
+suchen
+finden
+passen
+auswählen
+suchen
+haben
+sorgen
+suchen
+finden
+passen
+suchen
+finden
+gestalten
+freuen
+zurückkehren
+fühlen
+freuen
+erleben
+
+List all adjectives that appear in the following text in a standard form, one per line:
+Text:
+Anne: Ciao! Sono Anne.
+Marco: Ciao Anne, piacere! Sono Marco.
+Anne: Piacere Marco! Come stai?
+Marco: Sto bene, grazie! E tu?
+Anne: Anch'io sto bene, grazie!
+Marco: Di dove sei, Anne?
+Anne: Sono francese. E tu, Marco?
+Marco: Sono italiano, di Roma.
+Anne: Ah, Roma! Ho sentito parlare molto della tua città.
+Marco: Sì, è una città bellissima. Sei mai stata a Roma?
+Anne: No, non ancora. Ma mi piacerebbe visitarla un giorno.
+Marco: Sarà un piacere mostrarti la città se deciderai di venire!
+Anne: Grazie, Marco! Mi piacerebbe.
+Marco: Bene, Anne. Spero di vederti presto.
+Anne: Anch'io, Marco. A presto!
+Response:
+bellissima
+
+List all adjectives that appear in the following text in singular form, one per line:
+Text:
+Anne: Ciao! Sono Anne.
+Marco: Ciao Anne, piacere! Sono Marco.
+Anne: Piacere Marco! Come stai?
+Marco: Sto bene, grazie! E tu?
+Anne: Anch'io sto bene, grazie!
+Marco: Di dove sei, Anne?
+Anne: Sono francese. E tu, Marco?
+Marco: Sono italiano, di Roma.
+Anne: Ah, Roma! Ho sentito parlare molto della tua città.
+Marco: Sì, è una città bellissima. Sei mai stata a Roma?
+Anne: No, non ancora. Ma mi piacerebbe visitarla un giorno.
+Marco: Sarà un piacere mostrarti la città se deciderai di venire!
+Anne: Grazie, Marco! Mi piacerebbe.
+Marco: Bene, Anne. Spero di vederti presto.
+Anne: Anch'io, Marco. A presto!
+Response:
+bellissima
+
+List all nouns that appear in the following text in singular form, one per line:
+Text:
+Person 1: Привет! Как у тебя дела? У тебя есть домашние питомцы?
+Person 2: Привет! Да, у меня есть две кошки. Они замечательные! А у тебя?
+Person 1: У меня собака и хомяк. Собака - невероятно ласковая и игривая. А хомяк как себя ведет?
+Person 2: Мои кошки тоже очень ласковые. Хомяк у меня забавный, постоянно крутится в колесе. Интересно, как собака относится к хомяку?
+Person 1: О, собака любопытствует, но они вроде как не враги. Часто просто стоит и наблюдает за хомяком. А кошки как реагируют?
+Person 2: Мои кошки тоже любят наблюдать за хомяком. Иногда пытаются высунуть лапку в клетку, но хомяк сразу убегает. Это так забавно!
+Person 1: Звучит смешно! А как ты ухаживаешь за своими питомцами? У меня всегда проблемы с когтеточкой для кошек.
+Person 2: Я понимаю! Я купил специальные игрушки для затачивания когтей и ставлю их рядом с когтеточкой. Это помогает. Как у тебя с этим?
+Person 1: Пока проблемы. Моя собака часто грызет мебель. Может, ты знаешь, как ей отучиться от этого?
+Person 2: Можешь попробовать купить ей косточки для грызения или игрушки. Также полезно занять ее активностью на улице. У моей собаки это помогает.
+Person 1: Спасибо за совет! Обязательно попробую. А вообще, как долго у тебя уже есть питомцы?
+Person 2: У меня кошки уже два года, а собака у меня всего полгода. А у тебя?
+Person 1: Мои питомцы со мной уже несколько лет. Я не представляю свою жизнь без них. Как они делают мою жизнь ярче!
+Person 2: Полностью с тобой согласен! Питомцы приносят так много радости и тепла в нашу жизнь.
+Response:
+Привет
+дело
+домашний питомец
+кошка
+собака
+хомяк
+колесо
+враг
+лапа
+клетка
+мебель
+косточка
+игрушка
+активность
+улица
+совет
+жизнь
+радость
+тепло
