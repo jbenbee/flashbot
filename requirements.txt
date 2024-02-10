@@ -7,3 +7,4 @@ pandas
 numpy
 argparse
 waitress
+evaluate

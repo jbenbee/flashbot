@@ -45,6 +45,7 @@ def get_assistant_response(query, tokens):
                 {"role": "system", "content": f"You are a helpful assistant called {str(uuid.uuid1())[:5]}. Follow precisely the instructions of the user and pretend to be a human."},
                 {"role": "user", "content": query},
             ]
+    print('Sending a request to chatgpt...')
     while nattempts < 3:
         try:
             response = openai.ChatCompletion.create(
@@ -55,6 +56,7 @@ def get_assistant_response(query, tokens):
             break
         except openai.error.OpenAIError:
             time.sleep(nattempts + 1)
+    print('Done.')
 
     if nattempts == 3:
         print('The assistant raised an error.')
@@ -577,7 +579,6 @@ def increment_word_reps(chat_id, word_id):
     progress_df = words_progress_db.get_progress_df()
     num_reps = progress_df.loc[(progress_df['chat_id'] == chat_id) &
                                (progress_df['word_id'] == word_id), 'num_reps'].item()
-    print(num_reps)
     if num_reps > 5:
         words_progress_db.add_known_word(chat_id, word_id)
 
