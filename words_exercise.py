@@ -1,20 +1,23 @@
 import re
 
+import evaluate
+
 from exercise import Exercise
 
 
 class WordsExerciseLearn(Exercise):
-    def __init__(self, word, word_id, lang):
+    def __init__(self, word, word_id, lang, num_reps):
         super().__init__()
         self.word = word
         self.word_id = word_id
         self.lang = lang
+        self.num_reps = num_reps
 
     def repeat(self):
         pass
 
     def get_next_message_to_user(self, query, assistant_response):
-        mes = f'Learning word "{self.word}":\n\n{assistant_response}'
+        mes = f'Learning word "{self.word}" (# of repetitions: {int(self.num_reps)}):\n\n{assistant_response}'
         return mes
 
     def get_next_assistant_query(self, user_response) -> (str,int,bool):
@@ -30,14 +33,17 @@ class WordsExerciseLearn(Exercise):
 
 
 class WordsExerciseTest(Exercise):
-    def __init__(self, word, word_id, lang, level):
+    def __init__(self, word, word_id, lang, level, add_metrics=False):
         super().__init__()
         self.word = word
         self.word_id = word_id
         self.lang = lang
         self.level = level
+        self.add_metrics = add_metrics
+
         self.is_first_message_to_user = True
         self.assistant_responses = []
+        self.user_messages = []
         self.next_query_idx = 0
         with open('resources/words_test_analysis_prompt.txt') as fp:
             self.analysis_pre_prompt = fp.read()
@@ -76,7 +82,33 @@ class WordsExerciseTest(Exercise):
             mes = f'Translate into {self.lang}:\n' \
                   f'\n{test_sentence}\n'
         else:
-            mes = f'Reference translation: {self.correct_answer()}\n\nCorrections:\n{assistant_response}'
+            metrics_str = ''
+            if self.add_metrics:
+                predictions = [self.user_messages[-1]]
+                references = [self.correct_answer()]
+
+                try:
+                    bleu = evaluate.load("evaluate/metrics/bleu")
+                    bleu_score = bleu.compute(predictions=predictions, references=references)['bleu']
+                    meteor = evaluate.load("evaluate/metrics/meteor")
+                    meteor_score = meteor.compute(predictions=predictions, references=references)['meteor']
+                    # TODO: fix below when they fix "evaluate"
+                    # rouge = evaluate.load("evaluate/metrics/rouge")
+                    # rouge_scores = rouge.compute(predictions=predictions, references=references)
+                    # bert = evaluate.load("evaluate/metrics/bertscore")
+                    # bert_scores = bert.compute(predictions=predictions, references=references)
+                    metrics_str = f'Metrics (user vs reference):\n' \
+                                  f'BLEU: {bleu_score}\n' \
+                                  f'METEOR: {meteor_score}\n' \
+                                  f'\n'
+                        # f'BERT: F1: {bert_scores[-1]}, precision: {bert_scores[0]}, recall: {bert_scores[1]}\n\n'
+                    # f'ROUGE: {rouge_scores["rouge1"]}, {rouge_scores["rouge2"]}, {rouge_scores["rougeL"]}, {rouge_scores["rougeLsum"]}\n' \
+                except Exception as e:
+                    print('Something is wrong with "evaluate" package, skipping the metrics.')
+                    metrics_str = ''
+            mes = f'Reference translation: {self.correct_answer()}\n\n' \
+                  f'{metrics_str}' \
+                  f'Corrections:\n{assistant_response}'
         return mes
 
     def get_next_answer_test_query(self, user_response):
@@ -86,6 +118,7 @@ class WordsExerciseTest(Exercise):
                     f'Assistant:\n'
 
         else:
+            self.user_messages.append(user_response)
             query = self.analysis_pre_prompt + '\n\n' + \
                     f'Translation: {self.assistant_responses[0]["test"]} -> {user_response}\n' \
                     f'Suggested word: {self.word}\n' \

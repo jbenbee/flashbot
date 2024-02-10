@@ -64,9 +64,16 @@ class LearningPlan:
         if 'test' == mode:
             words = test_words
             weights = test_weights
-        else:
+        elif 'learn' == mode:
             words = learn_words
             weights = learn_weights
+        elif ('repeat_test' == mode) or ('repeat_learn' == mode):
+            # choose not ignored words that have been seen least often
+            min_num_reps = not_ignored_words['num_reps'].min()
+            words = not_ignored_words.loc[not_ignored_words['num_reps'] == min_num_reps]
+            weights = [1] * len(words)
+        else:
+            return None
 
         if words.shape[0] == 0:
             # there are no words for the selected mode
@@ -76,12 +83,14 @@ class LearningPlan:
         next_exercise_data = words.sample(n=1, weights=np.array(weights))
         next_exercise_word = next_exercise_data['word'].item()
         next_exercise_word_id = next_exercise_data['id'].item()
+        next_word_num_reps = next_exercise_data['num_reps'].item()
 
         user_level = self.user_config.get_user_data(chat_id)['level']
         if 'test' == mode:
-            exercise = WordsExerciseTest(word=next_exercise_word, word_id=next_exercise_word_id, lang=lang, level=user_level)
+            exercise = WordsExerciseTest(word=next_exercise_word, word_id=next_exercise_word_id, lang=lang, level=user_level,
+                                         add_metrics=self.user_config.get_user_data(chat_id)['show_test_metrics'])
         else:
-            exercise = WordsExerciseLearn(word=next_exercise_word, word_id=next_exercise_word_id, lang=lang)
+            exercise = WordsExerciseLearn(word=next_exercise_word, word_id=next_exercise_word_id, lang=lang, num_reps=next_word_num_reps)
 
         return exercise
 
