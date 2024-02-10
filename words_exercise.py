@@ -4,17 +4,18 @@ from exercise import Exercise
 
 
 class WordsExerciseLearn(Exercise):
-    def __init__(self, word, word_id, lang):
+    def __init__(self, word, word_id, lang, num_reps):
         super().__init__()
         self.word = word
         self.word_id = word_id
         self.lang = lang
+        self.num_reps = num_reps
 
     def repeat(self):
         pass
 
     def get_next_message_to_user(self, query, assistant_response):
-        mes = f'Learning word "{self.word}":\n\n{assistant_response}'
+        mes = f'Learning word "{self.word}" (# of repetitions: {int(self.num_reps)}):\n\n{assistant_response}'
         return mes
 
     def get_next_assistant_query(self, user_response) -> (str,int,bool):

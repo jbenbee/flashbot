@@ -104,24 +104,34 @@ def handle_new_exercise(chat_id, exercise):
     tel_send_message(chat_id, message, buttons=buttons)
 
 
+def get_new_word_exercise(chat_id, lang, exercise_data):
+    exercise = lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
+    if exercise is None and exercise_data == 'test':
+        # there are no words to test
+        tel_send_message(chat_id, f'All words in the deck are already learned, repeating already learned words.')
+        print(f'There are no exercises of type "words" for data {exercise_data}.')
+        exercise = lp.get_next_words_exercise(chat_id, lang, mode='repeat_test')
+    elif exercise is None and exercise_data == 'learn':
+        tel_send_message(chat_id,
+                         f'All words in the deck have already been seen at least {lp.test_threshold} times, repeating already seen words.')
+        print(f'There are no exercises of type "words" for data {exercise_data}.')
+        exercise = lp.get_next_words_exercise(chat_id, lang, mode='repeat_learn')
+    return exercise
+
+
 def ping_user(chat_id, lang, exercise_type, exercise_data):
-    # lock.acquire()
     if exercise_type == 'reading':
         exercise = lp.get_next_reading_exercise(chat_id, lang, topics=exercise_data)
     elif exercise_type == 'words':
-        exercise = lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
-        if exercise is None and exercise_data == 'test':
-            # there are no words to test
-            exercise = lp.get_next_words_exercise(chat_id, lang, mode='learn')
+        exercise = get_new_word_exercise(chat_id, lang, exercise_data)
     else:
         raise ValueError(f'Unknown exercise type {exercise_type}')
 
     if exercise is None:
-        tel_send_message(chat_id, f'An exercise is scheduled, but no exercise could be created for type {exercise_type}, data {exercise_data}.')
-        print(f'There are no exercises of type {exercise_type} for data {exercise_data}.')
+        tel_send_message(chat_id, f'Could not create an exercise, will try again later.')
+        print(f'Could not create an exercise {exercise_type} for data {exercise_data}.')
     else:
         handle_new_exercise(chat_id, exercise)
-    # lock.release()
 
 
 def parse_message(message):
@@ -180,17 +190,18 @@ def handle_commands(chat_id, lang, command):
 
         if command == '/next_test':
             tel_send_message(chat_id, f'Thinking...')
-            exercise = lp.get_next_words_exercise(chat_id, lang, 'test')
+            exercise = get_new_word_exercise(chat_id, lang, 'test')
             if exercise is None:
-                tel_send_message(chat_id, 'There are no words for testing.')
+                tel_send_message(chat_id, f'Could not create an exercise, please try again later.')
+                print(f'Could not create an exercise "words" for data "test".')
             else:
                 handle_new_exercise(chat_id, exercise)
         elif command == '/next_new':
             tel_send_message(chat_id, f'Thinking...')
-            exercise = lp.get_next_words_exercise(chat_id, lang, 'learn')
+            exercise = get_new_word_exercise(chat_id, lang, 'learn')
             if exercise is None:
-                tel_send_message(chat_id, f'All the words have already been seen at least {lp.test_threshold} time(s), '
-                                          f'you can only test them now.')
+                tel_send_message(chat_id, f'Could not create an exercise, please try again later.')
+                print(f'Could not create an exercise "words" for data "learn".')
             else:
                 handle_new_exercise(chat_id, exercise)
         elif command == '/next_reading':
@@ -566,6 +577,7 @@ def increment_word_reps(chat_id, word_id):
     progress_df = words_progress_db.get_progress_df()
     num_reps = progress_df.loc[(progress_df['chat_id'] == chat_id) &
                                (progress_df['word_id'] == word_id), 'num_reps'].item()
+    print(num_reps)
     if num_reps > 5:
         words_progress_db.add_known_word(chat_id, word_id)
 
