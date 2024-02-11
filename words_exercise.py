@@ -11,7 +11,7 @@ class WordsExerciseLearn(Exercise):
         self.word = word
         self.word_id = word_id
         self.lang = lang
-        self.num_reps = num_reps
+        self.num_reps = num_reps if num_reps is not None else 0
 
     def repeat(self):
         pass
