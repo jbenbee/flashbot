@@ -1,3 +1,4 @@
+import math
 import re
 
 import evaluate
@@ -11,7 +12,7 @@ class WordsExerciseLearn(Exercise):
         self.word = word
         self.word_id = word_id
         self.lang = lang
-        self.num_reps = num_reps if num_reps is not None else 0
+        self.num_reps = num_reps + 1 if not math.isnan(num_reps) else 1
 
     def repeat(self):
         pass
