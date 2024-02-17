@@ -1,5 +1,5 @@
 User:
-3 examples of using the italian word or phrase "dimenticare" in everyday life at A2 level of proficiency
+3 examples of using the italian word or phrase "dimenticare" at A2 level of proficiency
 Assistant:
 Giulia ha dimenticato le chiavi a casa.
 Giulia forgot the keys at home.
@@ -12,7 +12,7 @@ They always forget their homework at school.
 
 
 User:
-3 examples of using the spanish word or phrase "difundir" in everyday life at C1 level of proficiency
+3 examples of using the spanish word or phrase "difundir" at C1 level of proficiency
 Assistant:
 Mañana difundiremos las nuevas políticas de la empresa entre todos los empleados.
 Tomorrow, we will disseminate the new company policies among all the employees.
@@ -25,7 +25,7 @@ The marketing team is working hard to promote the upcoming company event.
 
 
 User:
-3 examples of using the german word or phrase "Arbeit" in everyday life at B1 level of proficiency
+3 examples of using the german word or phrase "Arbeit" at B1 level of proficiency
 Assistant:
 Seine Arbeitstage sind manchmal lang.
 His workdays are sometimes long.
@@ -38,7 +38,7 @@ Are you (plural) looking for jobs in the marketing field after completing your s
 
 
 User:
-3 examples of using the italian word or phrase "ascoltare" in everyday life at B2 level of proficiency
+3 examples of using the italian word or phrase "ascoltare" at B2 level of proficiency
 Assistant:
 Hai avuto l'opportunità di ascoltare le domande alla fine?
 Did you have the chance to listen to the questions at the end?
@@ -51,7 +51,7 @@ He will start listening to stories of photographers, and it will inspire him to 
 
 
 User:
-3 examples of using the russian word or phrase "дом" in everyday life at A1 level of proficiency
+3 examples of using the russian word or phrase "дом" at A1 level of proficiency
 Assistant:
 Где ваш дом?
 Where is your house?
