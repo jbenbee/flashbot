@@ -1,29 +1,63 @@
 User:
-Example of using the italian word or phrase "dimenticare" in everyday life at A2 level of proficiency
+3 examples of using the italian word or phrase "dimenticare" in everyday life at A2 level of proficiency
 Assistant:
-Ogni tanto dimentico gli appuntamenti.
-Sometimes I forget appointments.
+Giulia ha dimenticato le chiavi a casa.
+Giulia forgot the keys at home.
+
+Ha dimenticato il tuo nome.
+He/She forgot your name.
+
+Loro sempre dimenticano i compiti a scuola.
+They always forget their homework at school.
+
 
 User:
-Example of using the spanish word or phrase "difundir" in everyday life at C1 level of proficiency
+3 examples of using the spanish word or phrase "difundir" in everyday life at C1 level of proficiency
 Assistant:
-La responsabilidad de difundir información precisa en las redes sociales es crucial en estos tiempos.
-The responsibility to disseminate accurate information on social media is crucial in these times.
+Mañana difundiremos las nuevas políticas de la empresa entre todos los empleados.
+Tomorrow, we will disseminate the new company policies among all the employees.
+
+Hoy Esteban va a difundir las noticias importantes en mis redes sociales.
+Today Esteban is going to spread the important news on my social media.
+
+El equipo de marketing está trabajando arduamente para difundir el próximo evento de la empresa.
+The marketing team is working hard to promote the upcoming company event.
+
 
 User:
-Example of using the german word or phrase "Arbeit" in everyday life at B1 level of proficiency
+3 examples of using the german word or phrase "Arbeit" in everyday life at B1 level of proficiency
 Assistant:
-Meine Arbeitstage sind manchmal lang.
-My workdays are sometimes long.
+Seine Arbeitstage sind manchmal lang.
+His workdays are sometimes long.
+
+Wir haben uns die Arbeit im Haushalt geteilt.
+We shared the household chores.
+
+Sucht ihr nach dem Studium nach einer Arbeit im Bereich Marketing?
+Are you (plural) looking for jobs in the marketing field after completing your studies?
+
 
 User:
-Example of using the italian word or phrase "ascoltare" in everyday life at B2 level of proficiency
+3 examples of using the italian word or phrase "ascoltare" in everyday life at B2 level of proficiency
 Assistant:
-Durante una conversazione, cerco sempre di ascoltare attivamente per capire appieno ciò che l'altra persona sta cercando di comunicare.
-During a conversation, I always try to actively listen to fully understand what the other person is trying to communicate.
+Hai avuto l'opportunità di ascoltare le domande alla fine?
+Did you have the chance to listen to the questions at the end?
+
+Durante la riunione, cercavano di ascoltare attentamente le proposte dei colleghi.
+During the meeting, they tried to listen carefully to the colleagues' proposals.
+
+Inizierà ad ascoltare storie di fotografi e lo ispirerà a provare.
+He will start listening to stories of photographers, and it will inspire him to give it a try.
+
 
 User:
-Example of using the russian word or phrase "дом" in everyday life at A1 level of proficiency
+3 examples of using the russian word or phrase "дом" in everyday life at A1 level of proficiency
 Assistant:
+Где ваш дом?
+Where is your house?
+
 Это мой дом.
 This is my house.
+
+Вы живёте в одном доме?
+Do you(plural) live in the same house?
