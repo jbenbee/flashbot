@@ -42,7 +42,7 @@ class WordsExerciseTest(Exercise):
         self.lang = lang
         self.level = level
         self.add_metrics = add_metrics
-        self.n_examples = 3
+        self.n_examples = 1
 
         self.is_first_message_to_user = True
         self.assistant_responses = []
@@ -76,13 +76,13 @@ class WordsExerciseTest(Exercise):
             sentences = examples[ridx * 2: ridx * 2 + 2]
 
             test_sentence = sentences[1]
-            test_sentence = re.sub(r'(?:Sentence)?\s?2[:.]?', '', test_sentence,
-                   flags=re.IGNORECASE)
+            test_sentence = re.sub(r'[a-zA-Z]+\s[0-9][:.]?\s?', '', test_sentence,
+                   flags=re.IGNORECASE)  # this may not work for some languages
             test_sentence = test_sentence.strip()
 
             answer_sentence = sentences[0]
-            answer_sentence = re.sub(r'(?:Sentence)?\s?1[:.]?', '', answer_sentence,
-                   flags=re.IGNORECASE)
+            answer_sentence = re.sub(r'[a-zA-Z]+\s[0-9][:.]?\s?', '', answer_sentence,
+                   flags=re.IGNORECASE)  # this may not work for some languages
             answer_sentence = answer_sentence.strip()
 
             self.assistant_responses.append(dict(test=test_sentence, answer=answer_sentence))
@@ -123,7 +123,7 @@ class WordsExerciseTest(Exercise):
     def get_next_answer_test_query(self, user_response):
         if self.is_first_message_to_user:
             query = self.exercise_pre_prompt + '\n\n' + \
-                    f'User: {self.n_examples} examples of using the {self.lang} word or phrase "{self.word}" in everyday life at {self.level} level of proficiency:\n' \
+                    f'User: Show me an example of using the {self.lang} word or phrase "{self.word}" at {self.level} level of proficiency:\n' \
                     f'Assistant:\n'
 
         else:
