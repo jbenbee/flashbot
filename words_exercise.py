@@ -1,4 +1,5 @@
 import math
+import random
 import re
 
 import evaluate
@@ -41,6 +42,7 @@ class WordsExerciseTest(Exercise):
         self.lang = lang
         self.level = level
         self.add_metrics = add_metrics
+        self.n_examples = 3
 
         self.is_first_message_to_user = True
         self.assistant_responses = []
@@ -63,10 +65,16 @@ class WordsExerciseTest(Exercise):
         # parse the response
         if self.is_first_message_to_user:
 
-            sentences = assistant_response.split('\n')
-            sentences = [sen for sen in sentences if len(sen.strip()) > 0]
-            if len(sentences) != 2:
+            examples = assistant_response.split('\n')
+            examples = [sen for sen in examples if len(sen.strip()) > 0]
+
+            if len(examples) != self.n_examples * 2 or 'Ã¨' in assistant_response:
                 raise ValueError('Assistant responded in a wrong pattern.')
+
+            # choose randomly one of the {self.n_examples} examples
+            ridx = random.randint(0, self.n_examples - 1)
+            sentences = examples[ridx * 2: ridx * 2 + 2]
+
             test_sentence = sentences[1]
             test_sentence = re.sub(r'(?:Sentence)?\s?2[:.]?', '', test_sentence,
                    flags=re.IGNORECASE)
@@ -115,7 +123,7 @@ class WordsExerciseTest(Exercise):
     def get_next_answer_test_query(self, user_response):
         if self.is_first_message_to_user:
             query = self.exercise_pre_prompt + '\n\n' + \
-                    f'User: Example of using the {self.lang} word or phrase "{self.word}" in everyday life at {self.level} level of proficiency:\n' \
+                    f'User: {self.n_examples} examples of using the {self.lang} word or phrase "{self.word}" in everyday life at {self.level} level of proficiency:\n' \
                     f'Assistant:\n'
 
         else:
