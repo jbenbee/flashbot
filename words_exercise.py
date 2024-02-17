@@ -123,7 +123,7 @@ class WordsExerciseTest(Exercise):
     def get_next_answer_test_query(self, user_response):
         if self.is_first_message_to_user:
             query = self.exercise_pre_prompt + '\n\n' + \
-                    f'User: {self.n_examples} examples of using the {self.lang} word or phrase "{self.word}" at {self.level} level of proficiency:\n' \
+                    f'User: Show me {self.n_examples} examples of using the {self.lang} word or phrase "{self.word}" at {self.level} level of proficiency:\n' \
                     f'Assistant:\n'
 
         else:

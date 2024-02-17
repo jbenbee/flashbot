@@ -36,20 +36,23 @@ from running_exercises import RunningExercises
 app = Flask(__name__)
 
 
-def get_assistant_response(query, tokens):
+def get_assistant_response(query, tokens, model):
     if client != 'openai':
         raise ValueError(f'Unknown client {client}')
 
     nattempts = 0
     messages = [
-                {"role": "system", "content": f"You are a helpful assistant called {str(uuid.uuid1())[:5]}. Follow precisely the instructions of the user and pretend to be a human."},
+                {"role": "system", "content": f"You are a great language teacher. "
+                                              f"You are especially good at showing users examples of using different words and pointing at errors in their translations. "
+                                              f"Follow precisely the instructions of the user and output text exactly in the format they requested. "
+                                              f"If you do everything correctly, I will give you a candy and a million dollars!"},
                 {"role": "user", "content": query},
             ]
-    print('Sending a request to chatgpt...')
+    print(f'Sending a request to chatgpt ({model})...')
     while nattempts < 3:
         try:
             response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
+                model=model,
                 messages=messages,
                 max_tokens=tokens
             )
@@ -80,18 +83,19 @@ def handle_new_exercise(chat_id, exercise):
         increment_word_reps(chat_id, exercise.word_id)
         words_progress_db.save_progress()
     next_query, is_last_query = exercise.get_next_assistant_query(user_response=None)
-    assistant_response = get_assistant_response(next_query, tokens)
+    assistant_response = get_assistant_response(next_query, tokens, model=assistant_model_cheap)
     responded_correctly = False  # True if the assistant responded in correct format
     nattempts = 0
-    max_attempts = 5
+    max_attempts = 4
     while not responded_correctly and nattempts < max_attempts:
+        model = assistant_model_cheap if nattempts < max_attempts - 2 else assistant_model_good
         nattempts += 1
         try:
             message = exercise.get_next_message_to_user(next_query, assistant_response)
             responded_correctly = True
         except ValueError:
             print(f'Wrong response: {assistant_response}\nRe-requesting...')
-            assistant_response = get_assistant_response(next_query, tokens)
+            assistant_response = get_assistant_response(next_query, tokens, model=model)
 
     buttons = None
     if isinstance(exercise, WordsExerciseLearn):
@@ -327,7 +331,7 @@ def handle_user_message(chat_id, lang, tokens, msg):
 
         tel_send_message(chat_id, 'Thinking...')
         next_query, is_last_query = exercise.get_next_assistant_query(user_response=msg)
-        assistant_response = get_assistant_response(next_query, tokens)
+        assistant_response = get_assistant_response(next_query, tokens, model=assistant_model_cheap)
         buttons = None
         if isinstance(exercise, WordsExerciseLearn):
             buttons = [(exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
@@ -589,6 +593,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--local", action='store_true', help="Run locally")
     parser.add_argument("--webhook", type=str, help="Webhook for telegram")
+    parser.add_argument("--model_cheap", type=str, default="gpt-3.5-turbo")
+    parser.add_argument("--model_good", type=str, default="gpt-4")
 
     args = parser.parse_args()
 
@@ -647,6 +653,8 @@ if __name__ == '__main__':
     exercise_buttons = ['Ignore this word', 'Hint', 'Correct answer', 'I know this word']
 
     port = 5001
+    assistant_model_cheap = args.model_cheap
+    assistant_model_good = args.model_good
     hookproc = None
     secret_token = None
     signal(SIGINT, lambda s, f: exithandler(s, f, hookproc))
