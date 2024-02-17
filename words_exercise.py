@@ -76,13 +76,13 @@ class WordsExerciseTest(Exercise):
             sentences = examples[ridx * 2: ridx * 2 + 2]
 
             test_sentence = sentences[1]
-            test_sentence = re.sub(r'(?:Sentence)?\s?2[:.]?', '', test_sentence,
-                   flags=re.IGNORECASE)
+            test_sentence = re.sub(r'[a-zA-Z]+\s[0-9][:.]?\s?', '', test_sentence,
+                   flags=re.IGNORECASE)  # this may not work for some languages
             test_sentence = test_sentence.strip()
 
             answer_sentence = sentences[0]
-            answer_sentence = re.sub(r'(?:Sentence)?\s?1[:.]?', '', answer_sentence,
-                   flags=re.IGNORECASE)
+            answer_sentence = re.sub(r'[a-zA-Z]+\s[0-9][:.]?\s?', '', answer_sentence,
+                   flags=re.IGNORECASE)  # this may not work for some languages
             answer_sentence = answer_sentence.strip()
 
             self.assistant_responses.append(dict(test=test_sentence, answer=answer_sentence))
