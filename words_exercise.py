@@ -54,6 +54,16 @@ class WordsExerciseTest(Exercise):
         with open('resources/words_test_exercise_prompt.txt') as fp:
             self.exercise_pre_prompt = fp.read()
 
+        try:
+            self.bleu = evaluate.load("bleu")
+            self.meteor = evaluate.load("meteor")
+            self.rouge = evaluate.load("rouge")
+        except Exception as e:
+            print(f'Could not load metrics: {e}')
+            self.bleu = None
+            self.meteor = None
+            self.rouge = None
+
     def repeat(self):
         self.is_first_message_to_user = True
         self.next_query_idx = 0
@@ -68,22 +78,21 @@ class WordsExerciseTest(Exercise):
             examples = assistant_response.split('\n')
             examples = [sen for sen in examples if len(sen.strip()) > 0]
 
-            if len(examples) != self.n_examples * 2 or 'Ã¨' in assistant_response:
+            if len(examples) != self.n_examples or 'Ã¨' in assistant_response:
                 raise ValueError('Assistant responded in a wrong pattern.')
 
             # choose randomly one of the {self.n_examples} examples
             ridx = random.randint(0, self.n_examples - 1)
-            sentences = examples[ridx * 2: ridx * 2 + 2]
+            sentences = examples[ridx]
 
-            test_sentence = sentences[1]
-            test_sentence = re.sub(r'[a-zA-Z]+\s[0-9][:.]?\s?', '', test_sentence,
-                   flags=re.IGNORECASE)  # this may not work for some languages
-            test_sentence = test_sentence.strip()
-
-            answer_sentence = sentences[0]
-            answer_sentence = re.sub(r'[a-zA-Z]+\s[0-9][:.]?\s?', '', answer_sentence,
-                   flags=re.IGNORECASE)  # this may not work for some languages
-            answer_sentence = answer_sentence.strip()
+            res = re.search(r'([0-9]+\.\s)?([^\.?!]+[\.?!])\s([^\.?!]+[\.?!])', sentences)
+            groups = res.groups()
+            if len(groups) % 2 == 1:
+                # skip example number
+                groups = groups[1:]
+            test_idx = len(groups)//2
+            test_sentence = ' '.join(groups[test_idx:])
+            answer_sentence = ' '.join(groups[:test_idx])
 
             self.assistant_responses.append(dict(test=test_sentence, answer=answer_sentence))
 
@@ -96,25 +105,18 @@ class WordsExerciseTest(Exercise):
                 predictions = [self.user_messages[-1]]
                 references = [self.correct_answer()]
 
-                try:
-                    bleu = evaluate.load("evaluate/metrics/bleu")
-                    bleu_score = bleu.compute(predictions=predictions, references=references)['bleu']
-                    meteor = evaluate.load("evaluate/metrics/meteor")
-                    meteor_score = meteor.compute(predictions=predictions, references=references)['meteor']
-                    # TODO: fix below when they fix "evaluate"
-                    # rouge = evaluate.load("evaluate/metrics/rouge")
-                    # rouge_scores = rouge.compute(predictions=predictions, references=references)
-                    # bert = evaluate.load("evaluate/metrics/bertscore")
-                    # bert_scores = bert.compute(predictions=predictions, references=references)
-                    metrics_str = f'Metrics (user vs reference):\n' \
-                                  f'BLEU: {bleu_score}\n' \
-                                  f'METEOR: {meteor_score}\n' \
-                                  f'\n'
-                        # f'BERT: F1: {bert_scores[-1]}, precision: {bert_scores[0]}, recall: {bert_scores[1]}\n\n'
-                    # f'ROUGE: {rouge_scores["rouge1"]}, {rouge_scores["rouge2"]}, {rouge_scores["rougeL"]}, {rouge_scores["rougeLsum"]}\n' \
-                except Exception as e:
-                    print('Something is wrong with "evaluate" package, skipping the metrics.')
-                    metrics_str = ''
+                metrics_str = ''
+                if all([metric is not None for metric in [self.bleu, self.meteor, self.rouge]]):
+                    try:
+                        bleu_score = self.bleu.compute(predictions=predictions, references=references)['bleu']
+                        meteor_score = self.meteor.compute(predictions=predictions, references=references)['meteor']
+                        rouge_scores = self.rouge.compute(predictions=predictions, references=references)
+                        metrics_str = f'Metrics (user vs reference):\n' \
+                                      f'BLEU: {bleu_score:.3f}\n' \
+                                      f'METEOR: {meteor_score:.3f}\n' \
+                                      f'ROUGE: {rouge_scores["rouge1"]:.3f}, {rouge_scores["rouge2"]:.3f}, {rouge_scores["rougeL"]:.3f}, {rouge_scores["rougeLsum"]:.3f}\n'
+                    except Exception as e:
+                        print(f'Something is wrong with "evaluate" package: {e}')
             mes = f'Reference translation: {self.correct_answer()}\n\n' \
                   f'{metrics_str}' \
                   f'Corrections:\n{assistant_response}'
