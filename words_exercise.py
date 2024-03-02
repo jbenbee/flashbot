@@ -64,12 +64,15 @@ class WordsExerciseTest(Exercise):
             self.meteor = None
             self.rouge = None
 
+    def selected_test(self):
+        return self.assistant_responses[0]['test']
+
     def repeat(self):
         self.is_first_message_to_user = True
         self.next_query_idx = 0
 
     def correct_answer(self):
-        return self.assistant_responses[0]["answer"]
+        return self.assistant_responses[0]['answer']
 
     def get_next_message_to_user(self, query, assistant_response):
         # parse the response

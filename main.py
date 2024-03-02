@@ -20,6 +20,7 @@ import requests
 import argparse
 
 import openai
+import urllib.parse
 
 from decks_db import DecksDB
 from learning_plan import LearningPlan
@@ -37,71 +38,86 @@ app = Flask(__name__)
 
 
 def get_assistant_response(query, tokens, model):
-    if client != 'openai':
-        raise ValueError(f'Unknown client {client}')
 
     nattempts = 0
     messages = [
-                {"role": "system", "content": f"You are a great language teacher. "
-                                              f"You are especially good at showing users examples of using different words and pointing at errors in their translations. "
-                                              f"Follow precisely the instructions of the user and output text exactly in the format they requested. "
-                                              f"If you do everything correctly, I will give you a candy and a million dollars!"},
+                {"role": "system", "content": f"You are a great language teacher. "},
                 {"role": "user", "content": query},
             ]
-    print(f'Sending a request to chatgpt ({model})...')
     while nattempts < 3:
+        nattempts += 1
         try:
-            response = openai.ChatCompletion.create(
+            print(f'Sending a request to chatgpt ({model})...')
+            response = client.chat.completions.create(
                 model=model,
                 messages=messages,
                 max_tokens=tokens
             )
             break
-        except openai.error.OpenAIError:
-            time.sleep(nattempts + 1)
+        except openai.OpenAIError:
+            time.sleep(nattempts)
     print('Done.')
 
     if nattempts == 3:
         print('The assistant raised an error.')
-        text = 'Sorry, the assistant raised some error while processing this request.'
+        text = None
     else:
         try:
-            text = response['choices'][0]['message']['content']
+            text = response.choices[0].message.content.strip()
         except Exception as e:
             print(response)
-            text = f'Something is wrong {e}. Response: {response}'
+            text = None
 
-    mes = text.strip()
-    return mes
+    return text
+
+
+def refused_answer(text):
+    return any([m in text.lower() for m in ['mi dispiace', 'i am sorry', "i'm sorry", "lo siento", 'per favore', 'por favor']])
+
+
+def get_audio(query, file_path):
+    response = client.audio.speech.create(
+      model="tts-1",
+      voice="alloy",
+      input=query
+    )
+    response.stream_to_file(file_path)
 
 
 def handle_new_exercise(chat_id, exercise):
     tokens = user_config.get_user_data(chat_id)['max_tokens']
-    # running_exercises[chat_id] = exercise
+
     running_exercises.add_exercise(chat_id, exercise)
     if isinstance(exercise, WordsExerciseLearn):
         increment_word_reps(chat_id, exercise.word_id)
         words_progress_db.save_progress()
     next_query, is_last_query = exercise.get_next_assistant_query(user_response=None)
-    assistant_response = get_assistant_response(next_query, tokens, model=assistant_model_cheap)
-    responded_correctly = False  # True if the assistant responded in correct format
     nattempts = 0
     max_attempts = 4
+    responded_correctly = False
+
     while not responded_correctly and nattempts < max_attempts:
-        model = assistant_model_cheap if nattempts < max_attempts - 2 else assistant_model_good
         nattempts += 1
-        try:
-            message = exercise.get_next_message_to_user(next_query, assistant_response)
-            responded_correctly = True
-        except ValueError:
-            print(f'Wrong response: {assistant_response}\nRe-requesting...')
-            assistant_response = get_assistant_response(next_query, tokens, model=model)
+        model = assistant_model_cheap if nattempts < max_attempts - 1 else assistant_model_good
+        assistant_response = get_assistant_response(next_query, tokens, model=model)
+        if assistant_response is None:
+            responded_correctly = False
+        elif refused_answer(assistant_response):
+            print(f'Detected REFUSED ANSWER: {assistant_response}')
+            responded_correctly = False
+        else:
+            try:
+                message = exercise.get_next_message_to_user(next_query, assistant_response)
+                responded_correctly = True
+            except Exception as e:
+                print(f'Wrong response: {assistant_response}\nException: {e}')
+                responded_correctly = False
 
     buttons = None
     if isinstance(exercise, WordsExerciseLearn):
         buttons = [(exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
     if isinstance(exercise, WordsExerciseTest):
-        buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer')]
+        buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
 
     if nattempts == max_attempts and not responded_correctly:
         message = 'Sorry, the assistant raised some error while processing this request. Please retry.'
@@ -159,6 +175,23 @@ def parse_message(message):
         chat_id = message['callback_query']['message']['chat']['id']
         data = message['callback_query']['data']
     return chat_id, type, data
+
+
+def tel_send_audio(chat_id, audio_file_path):
+
+    with open(audio_file_path, 'rb') as audio_file:
+        payload = {
+            'chat_id': str(chat_id),
+            'title': 'audio.mp3',
+            'parse_mode': 'HTML'
+        }
+        files = {
+            'audio': audio_file.read(),
+        }
+        resp = requests.post(
+            f"https://api.telegram.org/bot{bot_token}/sendAudio",
+            data=payload,
+            files=files).json()
 
 
 def tel_send_message(chat_id, text, buttons=None):
@@ -274,6 +307,11 @@ def handle_exercise_button_press(chat_id, lang, udata, exercise):
                 n_known_words = len(known_words)
                 if n_known_words % 5 == 0:
                     tel_send_message(chat_id, f'Congrats, you already learned {n_known_words} words!')
+            elif f'Answer audio_{exercise.uid}' == udata:
+                file_path = f'{chat_id}_{exercise.uid}.mp3'
+                get_audio(exercise.correct_answer(), file_path)
+                tel_send_audio(chat_id, file_path)
+                os.remove(file_path)
             else:
                 raise ValueError(f'Unknown callback data {udata}')
         else:
@@ -332,6 +370,8 @@ def handle_user_message(chat_id, lang, tokens, msg):
         tel_send_message(chat_id, 'Thinking...')
         next_query, is_last_query = exercise.get_next_assistant_query(user_response=msg)
         assistant_response = get_assistant_response(next_query, tokens, model=assistant_model_cheap)
+        if assistant_response is None:
+            raise ValueError('Assistant did not reply.')
         buttons = None
         if isinstance(exercise, WordsExerciseLearn):
             buttons = [(exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
@@ -438,7 +478,6 @@ def exithandler(signal_received, frame, proc):
     print('SIGINT or CTRL-C detected. Exiting gracefully')
 
     # store running exercises
-    # joblib.dump(running_exercises, filename=running_exercises_file)
     running_exercises.backup()
 
     if proc is not None:
@@ -588,7 +627,6 @@ def increment_word_reps(chat_id, word_id):
 
 
 if __name__ == '__main__':
-    client = 'openai'
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--local", action='store_true', help="Run locally")
@@ -602,17 +640,8 @@ if __name__ == '__main__':
         print('Webhook must be specified when not running locally.')
         exit()
 
-    # lock = threading.Lock()
-
-    # running_commands = dict()
     running_commands = RunningCommands()
     running_exercises_file = 'running_exercise.jb'
-    # if os.path.exists(running_exercises_file):
-    #     # store running exercises
-    #     running_exercises = joblib.load(filename=running_exercises_file)
-    #     os.remove(running_exercises_file)
-    # else:
-    #     running_exercises = dict()
     running_exercises = RunningExercises(running_exercises_file)
 
     bot_token = os.getenv('BOT_TOKEN')
@@ -620,13 +649,12 @@ if __name__ == '__main__':
         with open(Path('api_keys/bot_token.txt'), 'r') as fp:
             bot_token = fp.read()
 
-    openai.api_key = os.getenv('OPENAI_KEY')
-    openai.organization = os.getenv('OPENAI_ORG')
-    if openai.api_key is None or openai.organization:
+    openai_key = os.getenv('OPENAI_KEY')
+    if openai_key is None:
         with open(Path('api_keys/openai_api.txt'), 'r') as fp:
-            lines = fp.readlines()
-            openai.api_key = lines[0].strip()
-            openai.organization = lines[1].strip()
+                lines = fp.readlines()
+                openai_key = lines[0].strip()
+    client = openai.OpenAI(api_key=openai_key)
 
     user_data_root = os.getenv('CH_USER_DATA_ROOT')
     user_data_root = 'resources' if user_data_root is None else user_data_root
@@ -650,7 +678,7 @@ if __name__ == '__main__':
     shared_objs = [user_config, words_db, words_progress_db, decks_db, running_exercises, running_commands]
 
     # list of known exercise buttons
-    exercise_buttons = ['Ignore this word', 'Hint', 'Correct answer', 'I know this word']
+    exercise_buttons = ['Ignore this word', 'Hint', 'Correct answer', 'I know this word', 'Answer audio']
 
     port = 5001
     assistant_model_cheap = args.model_cheap
