@@ -365,7 +365,8 @@ def handle_user_message(chat_id, lang, tokens, msg):
     # elif chat_id in running_exercises.keys():
     #     exercise = running_exercises.pop(chat_id)
     elif chat_id in running_exercises.chat_ids:
-        exercise = running_exercises.pop_exercise(chat_id)
+        #exercise = running_exercises.pop_exercise(chat_id)
+        exercise = running_exercises.current_exercise(chat_id)
 
         tel_send_message(chat_id, 'Thinking...')
         next_query, is_last_query = exercise.get_next_assistant_query(user_response=msg)
