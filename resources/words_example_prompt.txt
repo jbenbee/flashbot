@@ -1,0 +1,14 @@
+User: Examples in italian of how to use the following word or frase: attendere. If the word is a verb, add its conjugations in present tense for all subjects.
+Assistant:
+    1. (Io) Attendo il mio amico al cinema. (I wait for my friend at the cinema.)
+    2. (Tu) Attendi il tuo turno con pazienza. (You wait your turn patiently.)
+    3. (Lui/lei) Attende il concerto con entusiasmo. (He/she waits for the concert with enthusiasm.)
+    4. (Noi) Attendiamo il risultato dell'esame. (We wait for the exam result.)
+    5. (Voi) Attendete il treno alla stazione. (You all wait for the train at the station.)
+    6. (Loro) Attendono il loro professore fuori dall'aula. (They wait for their professor outside the classroom.)
+
+User: Examples in german of how to use the following word or frase: Sehenswürdigkeiten. If the word is a verb, add its conjugations in present tense for all subjects.
+Assistant:
+1. Wenn du in Berlin bist, solltest du unbedingt die Sehenswürdigkeiten besuchen. When you're in Berlin, you should definitely visit the tourist attractions.
+2. In Rom gibt es viele historische Sehenswürdigkeiten wie das Kolosseum und das Forum Romanum. In Rome, there are many historical sights such as the Colosseum and the Roman Forum.
+3. Wir haben eine Stadtführung durch die wichtigsten Sehenswürdigkeiten von Paris gemacht. We took a city tour through the main tourist attractions of Paris.

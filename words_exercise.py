@@ -15,6 +15,9 @@ class WordsExerciseLearn(Exercise):
         self.lang = lang
         self.num_reps = num_reps + 1 if not math.isnan(num_reps) else 1
 
+        with open('resources/words_example_prompt.txt') as fp:
+            self.example_pre_prompt = fp.read()
+
     def repeat(self):
         pass
 
@@ -23,13 +26,10 @@ class WordsExerciseLearn(Exercise):
         return mes
 
     def get_next_assistant_query(self, user_response) -> (str,int,bool):
-        query = f"User: 3 simple examples in italian of how to use the following word or frase: attendere.\n"\
-                f"Assistant:\n"\
-                f"1. Potresti attendere un momento prima di parlare? Can you wait a moment before talking?\n"\
-                f"2. Devo attendere il treno delle 16.45. I have to wait for the 4.45 p.m. train.\n"\
-                f"3. Attendiamo il tuo arrivo con ansia! We are eagerly waiting for your arrival!\n"\
-                f"User: 3 simple examples in {self.lang} of how to use the following word or frase: {self.word}.\n"\
-                f"Assistant:\n"
+        query = self.example_pre_prompt + '\n\n' + \
+                f'User: Examples in {self.lang} of how to use the following word or frase: {self.word}. ' \
+                f'If the word is a verb, add its conjugations in present tense for all subjects.\n' \
+                f'Assistant:\n'
         is_last = True
         return query, is_last
 
