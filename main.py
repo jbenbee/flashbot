@@ -681,7 +681,7 @@ if __name__ == '__main__':
     with open(user_data_root / 'interface.json', 'r') as fp:
         interface = json.loads(fp.read())
 
-    lp = LearningPlan(words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db,
+    lp = LearningPlan(interface, words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db,
                       reading_db=reading_db, user_config=user_config)
 
     shared_objs = [user_config, words_db, words_progress_db, decks_db, running_exercises, running_commands]

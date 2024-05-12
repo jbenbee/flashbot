@@ -8,21 +8,22 @@ from exercise import Exercise
 
 
 class WordsExerciseLearn(Exercise):
-    def __init__(self, word, word_id, lang, num_reps):
+    def __init__(self, word, word_id, lang, num_reps, interface):
         super().__init__()
         self.word = word
         self.word_id = word_id
         self.lang = lang
+        self.interface = interface
         self.num_reps = num_reps + 1 if not math.isnan(num_reps) else 1
 
-        with open('resources/words_example_prompt.txt') as fp:
+        with open(f'resources/words_example_prompt_{lang}.txt') as fp:
             self.example_pre_prompt = fp.read()
 
     def repeat(self):
         pass
 
     def get_next_message_to_user(self, query, assistant_response):
-        mes = f'Learning word "{self.word}" (# of repetitions: {int(self.num_reps)}):\n\n{assistant_response}'
+        mes = f'{self.interface["Learning word"][self.lang]} "{self.word}" (# {self.interface["of repetitions"][self.lang]}: {int(self.num_reps)}):\n\n{assistant_response}'
         return mes
 
     def get_next_assistant_query(self, user_response) -> (str,int,bool):
@@ -35,12 +36,13 @@ class WordsExerciseLearn(Exercise):
 
 
 class WordsExerciseTest(Exercise):
-    def __init__(self, word, word_id, lang, level, add_metrics=False):
+    def __init__(self, word, word_id, lang, level, interface, add_metrics=False):
         super().__init__()
         self.word = word
         self.word_id = word_id
         self.lang = lang
         self.level = level
+        self.interface = interface
         self.add_metrics = add_metrics
         self.n_examples = 1
 
@@ -48,10 +50,10 @@ class WordsExerciseTest(Exercise):
         self.assistant_responses = []
         self.user_messages = []
         self.next_query_idx = 0
-        with open('resources/words_test_analysis_prompt.txt') as fp:
+        with open(f'resources/words_test_analysis_prompt_{lang}.txt') as fp:
             self.analysis_pre_prompt = fp.read()
 
-        with open('resources/words_test_exercise_prompt.txt') as fp:
+        with open(f'resources/words_test_exercise_prompt_{lang}.txt') as fp:
             self.exercise_pre_prompt = fp.read()
 
         try:
@@ -100,7 +102,7 @@ class WordsExerciseTest(Exercise):
             self.assistant_responses.append(dict(test=test_sentence, answer=answer_sentence))
 
             self.is_first_message_to_user = False
-            mes = f'Translate into {self.lang}:\n' \
+            mes = f'{self.interface["Translate into"][self.lang]} {self.lang}:\n' \
                   f'\n{test_sentence}\n'
         else:
             metrics_str = ''
@@ -120,9 +122,9 @@ class WordsExerciseTest(Exercise):
                                       f'ROUGE: {rouge_scores["rouge1"]:.3f}, {rouge_scores["rouge2"]:.3f}, {rouge_scores["rougeL"]:.3f}, {rouge_scores["rougeLsum"]:.3f}\n'
                     except Exception as e:
                         print(f'Something is wrong with "evaluate" package: {e}')
-            mes = f'Reference translation: {self.correct_answer()}\n\n' \
+            mes = f'{self.interface["Reference translation"][self.lang]}: {self.correct_answer()}\n\n' \
                   f'{metrics_str}' \
-                  f'Corrections:\n{assistant_response}'
+                  f'{self.interface["Corrections"][self.lang]}:\n{assistant_response}'
         return mes
 
     def get_next_answer_test_query(self, user_response):

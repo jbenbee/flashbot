@@ -104,8 +104,20 @@
   "and set is as a current deck": {
     "russian": "и он выбран в качестве текущего"
   },
-  "": {
-    "russian": ""
+  "Learning word": {
+    "russian": "Учим слово"
+  },
+  "of repetitions": {
+    "russian": "повторений"
+  },
+  "Translate into": {
+    "russian": "Переведите на"
+  },
+  "Reference translation": {
+    "russian": "Пример перевода"
+  },
+  "Corrections": {
+    "russian": "Исправления"
   },
   "": {
     "russian": ""
