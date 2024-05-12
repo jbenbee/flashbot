@@ -1,0 +1,113 @@
+{
+  "Ignore this word": {
+    "russian": "Забыть слово"
+  },
+  "Hint": {
+    "russian": "Подсказка"
+  },
+  "Correct answer": {
+    "russian": "Правильный ответ"
+  },
+  "I know this word": {
+    "russian": "Уже знаю это слово"
+  },
+  "Answer audio": {
+    "russian": "Аудио ответа"
+  },
+  "All words in the deck are already learned, repeating already learned words": {
+    "russian": "Все слова в наборе уже выучены, повторяем уже выученные слова"
+  },
+  "All words in the deck have already been seen at least": {
+    "russian": "Все слова в наборе появлялись уже как минимум"
+  },
+  "times, repeating already seen words": {
+    "russian": "раз(а), повторяем слова которые уже появлялись"
+  },
+  "Could not create an exercise, will try again later": {
+    "russian": "Не смог создать упражнение, попробую позже"
+  },
+  "Thinking": {
+    "russian": "Думаю"
+  },
+  "Could not create an exercise, please try again later'": {
+    "russian": "Не смог создать упражнение, пожалуйста попробуйте позже"
+  },
+  "Sorry, there are no reading topics for you": {
+    "russian": "Извините, но для вас нет тем для прочтения"
+  },
+  "Type the word that you would like to add": {
+    "russian": "Отправьте мне слово которое вы хотите добавить"
+  },
+  "You can only add words to the decks that you created": {
+    "russian": "Слова можно добавлять только в те наборы которые вы создали сами"
+  },
+  "Number of known words": {
+    "russian": "Количество выученных слов"
+  },
+  "List of known words": {
+    "russian": "Список выученных слов"
+  },
+  "Current deck is": {
+    "russian": "Текущий набор называется"
+  },
+  "Deck info": {
+    "russian": "Информация о наборе"
+  },
+  "Create a new deck by typing its name or select an existing deck": {
+    "russian": "Выберите существующий набор или создайте новый напечетав и отправив его имя"
+  },
+  "Create a new deck by typing its name": {
+    "russian": "Создайте новый набор напечетав и отправив его имя"
+  },
+  "Sorry, the exercise has been completed or is expired": {
+    "russian": "Извините, упражнение было выполнено или истек его срок действия"
+  },
+  "The word": {
+    "russian": "Слово"
+  },
+  "is added to ignore list": {
+    "russian": "добавлено в игнор"
+  },
+  "Try to use the word": {
+    "russian": "Попробуйте ипользовать слово"
+  },
+  "in your translation": {
+    "russian": "в своем переводе"
+  },
+  "is added to the list of known words": {
+    "russian": "добавлено в список слов которые вы уже знаете"
+  },
+  "Congrats, you already learned": {
+    "russian": "Поздравляем, вы уже выучили"
+  },
+  "words": {
+    "russian": "слов"
+  },
+  "No exercises or commands are running, this message will be ignored": {
+    "russian": "Нет текущих упражнений или команд, это сообщение будет проигнорировано"
+  },
+  "The command has already been processed": {
+    "russian": "Эта команда уже была обработана"
+  },
+  "Something went terribly wrong, please try again or notify the admin": {
+    "russian": "Что-то пошло не так, пожалуйста уведомити админа"
+  },
+  "Word": {
+    "russian": "Слово"
+  },
+  "is successfully added to deck": {
+    "russian": "успешно добавлено в набор"
+  },
+  "Created deck": {
+    "russian": "Создан набор"
+  },
+  "and set is as a current deck": {
+    "russian": "и он выбран в качестве текущего"
+  },
+  "": {
+    "russian": ""
+  },
+  "": {
+    "russian": ""
+  }
+}
