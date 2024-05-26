@@ -8,39 +8,42 @@ from exercise import Exercise
 
 
 class WordsExerciseLearn(Exercise):
-    def __init__(self, word, word_id, lang, num_reps, interface):
+    def __init__(self, word, word_id, lang, uilang, num_reps, interface):
         super().__init__()
         self.word = word
         self.word_id = word_id
         self.lang = lang
+        self.uilang = uilang
         self.interface = interface
         self.num_reps = num_reps + 1 if not math.isnan(num_reps) else 1
 
-        with open(f'resources/words_example_prompt_{lang}.txt') as fp:
+        with open(f'resources/words_example_prompt_{uilang}.txt', 'r', encoding='utf-8') as fp:
             self.example_pre_prompt = fp.read()
 
     def repeat(self):
         pass
 
     def get_next_message_to_user(self, query, assistant_response):
-        mes = f'{self.interface["Learning word"][self.lang]} "{self.word}" (# {self.interface["of repetitions"][self.lang]}: {int(self.num_reps)}):\n\n{assistant_response}'
+        mes = f'{self.interface["Learning word"][self.uilang]} "{self.word}" (# {self.interface["of repetitions"][self.uilang]}: {int(self.num_reps)}):\n\n{assistant_response}'
         return mes
 
     def get_next_assistant_query(self, user_response) -> (str,int,bool):
+        lang_tr = self.interface[self.lang][self.uilang]
         query = self.example_pre_prompt + '\n\n' + \
-                f'User: Examples in {self.lang} of how to use the following word or frase: {self.word}. ' \
-                f'If the word is a verb, add its conjugations in present tense for all subjects.\n' \
-                f'Assistant:\n'
+                f'{self.interface["User: Examples in"][self.uilang]} "{lang_tr}" {self.interface["of how to use the following word or frase"][self.uilang]}: {self.word}. ' \
+                f'{self.interface["If the word is a verb, add its conjugations in present tense for all subjects"][self.uilang]}.\n' \
+                f'{self.interface["Assistant"][self.uilang]}:\n'
         is_last = True
         return query, is_last
 
 
 class WordsExerciseTest(Exercise):
-    def __init__(self, word, word_id, lang, level, interface, add_metrics=False):
+    def __init__(self, word, word_id, lang, uilang, level, interface, add_metrics=False):
         super().__init__()
         self.word = word
         self.word_id = word_id
         self.lang = lang
+        self.uilang = uilang
         self.level = level
         self.interface = interface
         self.add_metrics = add_metrics
@@ -50,10 +53,10 @@ class WordsExerciseTest(Exercise):
         self.assistant_responses = []
         self.user_messages = []
         self.next_query_idx = 0
-        with open(f'resources/words_test_analysis_prompt_{lang}.txt') as fp:
+        with open(f'resources/words_test_analysis_prompt_{uilang}.txt', 'r', encoding='utf-8') as fp:
             self.analysis_pre_prompt = fp.read()
 
-        with open(f'resources/words_test_exercise_prompt_{lang}.txt') as fp:
+        with open(f'resources/words_test_exercise_prompt_{uilang}.txt', 'r', encoding='utf-8') as fp:
             self.exercise_pre_prompt = fp.read()
 
         try:
@@ -101,8 +104,9 @@ class WordsExerciseTest(Exercise):
 
             self.assistant_responses.append(dict(test=test_sentence, answer=answer_sentence))
 
+            lang_tr = self.interface[self.lang][self.uilang]
             self.is_first_message_to_user = False
-            mes = f'{self.interface["Translate into"][self.lang]} {self.lang}:\n' \
+            mes = f'{self.interface["Translate into"][self.uilang]} {lang_tr}:\n' \
                   f'\n{test_sentence}\n'
         else:
             metrics_str = ''
@@ -122,23 +126,25 @@ class WordsExerciseTest(Exercise):
                                       f'ROUGE: {rouge_scores["rouge1"]:.3f}, {rouge_scores["rouge2"]:.3f}, {rouge_scores["rougeL"]:.3f}, {rouge_scores["rougeLsum"]:.3f}\n'
                     except Exception as e:
                         print(f'Something is wrong with "evaluate" package: {e}')
-            mes = f'{self.interface["Reference translation"][self.lang]}: {self.correct_answer()}\n\n' \
+            mes = f'{self.interface["Reference translation"][self.uilang]}: {self.correct_answer()}\n\n' \
                   f'{metrics_str}' \
-                  f'{self.interface["Corrections"][self.lang]}:\n{assistant_response}'
+                  f'{self.interface["Corrections"][self.uilang]}:\n{assistant_response}'
         return mes
 
     def get_next_answer_test_query(self, user_response):
+        lang_tr = self.interface[self.lang][self.uilang]
         if self.is_first_message_to_user:
             query = self.exercise_pre_prompt + '\n\n' + \
-                    f'User: Show me an example of using the {self.lang} word or phrase "{self.word}" at {self.level} level of proficiency:\n' \
-                    f'Assistant:\n'
+                    f'{self.interface["User: Show me an example of using the word or phrase"][self.uilang]} "{self.word}" ' \
+                    f'{self.interface["in language"][self.uilang]} "{lang_tr}" {self.interface["at level of proficiency"][self.uilang]} "{self.level}":\n' \
+                    f'{self.interface["Assistant"][self.uilang]}:\n'
 
         else:
             self.user_messages.append(user_response)
             query = self.analysis_pre_prompt + '\n\n' + \
-                    f'Translation: {self.assistant_responses[0]["test"]} -> {user_response}\n' \
-                    f'Suggested word: {self.word}\n' \
-                    f'Correction: '
+                    f'{self.interface["Translation"][self.uilang]}: {self.assistant_responses[0]["test"]} -> {user_response}\n' \
+                    f'{self.interface["Suggested word"][self.uilang]}: {self.word}\n' \
+                    f'{self.interface["Correction"][self.uilang]}: '
         return query
 
     def get_next_assistant_query(self, user_response) -> (str,int,bool):

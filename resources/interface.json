@@ -119,7 +119,43 @@
   "Corrections": {
     "russian": "Исправления"
   },
-  "": {
-    "russian": ""
+  "You are a great language teacher": {
+    "russian": "Ты отличный преподаватель по языкам"
+  },
+  "User: Examples in": {
+    "russian": "Пользователь: Примеры на языке"
+  },
+  "of how to use the following word or frase": {
+    "russian": "как использовать слово или фразу"
+  },
+  "If the word is a verb, add its conjugations in present tense for all subjects": {
+    "russian": "Если это слово глагол, то погажи как оно спрягается"
+  },
+  "Assistant": {
+    "russian": "Ассистент"
+  },
+  "User: Show me an example of using the word or phrase": {
+    "russian": "Покажи мне примеры использования слова или фразы"
+  },
+  "in language": {
+    "russian": "на языке"
+  },
+  "at level of proficiency": {
+    "russian": "на уровне владения языком"
+  },
+  "Translation": {
+    "russian": "Перевод"
+  },
+  "Suggested word": {
+    "russian": "Предложенное слово"
+  },
+  "Correction": {
+    "russian": "Исправление"
+  },
+  "italian": {
+    "russian": "итальянский"
+  },
+  "uzbek": {
+    "russian": "узбекский"
   }
 }

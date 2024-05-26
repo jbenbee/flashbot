@@ -37,11 +37,11 @@ from running_exercises import RunningExercises
 app = Flask(__name__)
 
 
-def get_assistant_response(query, tokens, model):
+def get_assistant_response(query, tokens, model, uilang):
 
     nattempts = 0
     messages = [
-                {"role": "system", "content": f"You are a great language teacher. "},
+                {"role": "system", "content": interface["You are a great language teacher"][uilang]},
                 {"role": "user", "content": query},
             ]
     while nattempts < 3:
@@ -85,6 +85,8 @@ def get_audio(query, file_path):
 
 
 def handle_new_exercise(chat_id, exercise):
+    uilang = user_config.get_user_ui_lang(chat_id)
+
     tokens = user_config.get_user_data(chat_id)['max_tokens']
 
     running_exercises.add_exercise(chat_id, exercise)
@@ -99,7 +101,7 @@ def handle_new_exercise(chat_id, exercise):
     while not responded_correctly and nattempts < max_attempts:
         nattempts += 1
         model = assistant_model_cheap if nattempts < max_attempts - 1 else assistant_model_good
-        assistant_response = get_assistant_response(next_query, tokens, model=model)
+        assistant_response = get_assistant_response(next_query, tokens, model=model, uilang=uilang)
         if assistant_response is None:
             responded_correctly = False
         elif refused_answer(assistant_response):
@@ -180,6 +182,8 @@ def parse_message(message):
 
 
 def tel_send_audio(chat_id, audio_file_path):
+    uilang = user_config.get_user_ui_lang(chat_id)
+    bot_token = bot_tokens[uilang]
 
     with open(audio_file_path, 'rb') as audio_file:
         payload = {
@@ -197,6 +201,9 @@ def tel_send_audio(chat_id, audio_file_path):
 
 
 def tel_send_message(chat_id, text, buttons=None):
+    uilang = user_config.get_user_ui_lang(chat_id)
+    bot_token = bot_tokens[uilang]
+
     url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
     payload = {
         'chat_id': chat_id,
@@ -375,7 +382,7 @@ def handle_user_message(chat_id, lang, tokens, msg):
 
         tel_send_message(chat_id, 'Thinking...')
         next_query, is_last_query = exercise.get_next_assistant_query(user_response=msg)
-        assistant_response = get_assistant_response(next_query, tokens, model=assistant_model_cheap)
+        assistant_response = get_assistant_response(next_query, tokens, model=assistant_model_cheap, uilang=uilang)
         if assistant_response is None:
             raise ValueError('Assistant did not reply.')
         buttons = None
@@ -558,16 +565,17 @@ def webhook_func(local, url):
     global secret_token
     sleep_time = 110 * 60 if local else 24 * 60 * 60
     while True:
-        if hookproc is not None:
-            page = urllib.request.urlopen(f'https://api.telegram.org/bot{bot_token}/setWebhook?remove')
-            print(f'Remove webhook status: {page.getcode()}')
-            hookproc.kill()
         secret_token = str(uuid.uuid1())
-        hookproc = set_webhook(port, secret_token, url)
+        for bot_token in bot_tokens.values():
+            if hookproc[bot_token] is not None:
+                page = urllib.request.urlopen(f'https://api.telegram.org/bot{bot_token}/setWebhook?remove')
+                print(f'Remove webhook status: {page.getcode()}')
+                hookproc[bot_token].kill()
+            hookproc[bot_token] = set_webhook(port, url, bot_token)
         time.sleep(sleep_time)  # refresh hook url
 
 
-def set_webhook(port, secret_token, url):
+def set_webhook(port, url, bot_token):
     if url is not None:
         response = requests.post(
             url=f'https://api.telegram.org/bot{bot_token}/setWebhook',
@@ -650,10 +658,20 @@ if __name__ == '__main__':
     running_exercises_file = 'running_exercise.jb'
     running_exercises = RunningExercises(running_exercises_file)
 
-    bot_token = os.getenv('BOT_TOKEN')
-    if bot_token is None:
+    engbot_token = os.getenv('BOT_TOKEN')
+    if engbot_token is None:
         with open(Path('api_keys/bot_token.txt'), 'r') as fp:
-            bot_token = fp.read()
+            engbot_token = fp.read()
+    rubot_token = os.getenv('RUBOT_TOKEN')
+    if rubot_token is None:
+        with open(Path('api_keys/rubot_token.txt'), 'r') as fp:
+            rubot_token = fp.read()
+
+    # TODO: A user can only be assigned to one of the bots, not to multiple
+    bot_tokens = {
+        # 'english': engbot_token,  # TODO
+        'russian': rubot_token
+    }
 
     openai_key = os.getenv('OPENAI_KEY')
     if openai_key is None:
@@ -678,7 +696,7 @@ if __name__ == '__main__':
     words_progress_db = WordsProgressDB(words_progress_db_path)
     user_config = UserConfig(user_config_path)
 
-    with open(user_data_root / 'interface.json', 'r') as fp:
+    with open(user_data_root / 'interface.json', 'r', encoding='utf-8') as fp:
         interface = json.loads(fp.read())
 
     lp = LearningPlan(interface, words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db,
@@ -692,9 +710,11 @@ if __name__ == '__main__':
     port = 5001
     assistant_model_cheap = args.model_cheap
     assistant_model_good = args.model_good
-    hookproc = None
+    hookproc = {token: None for token in bot_tokens.values()}
     secret_token = None
-    signal(SIGINT, lambda s, f: exithandler(s, f, hookproc))
+    for token in bot_tokens.values():
+        signal(SIGINT, lambda s, f: exithandler(s, f, hookproc[token]))
+
     handle_webhook(local=args.local, url=args.webhook)
 
     handle_job_queue(user_config)
