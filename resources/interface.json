@@ -1,161 +1,214 @@
 {
   "Ignore this word": {
-    "russian": "Забыть слово"
+    "russian": "Забыть слово",
+    "english": "Ignore this word"
   },
   "Hint": {
-    "russian": "Подсказка"
+    "russian": "Подсказка",
+    "english": "Hint"
   },
   "Correct answer": {
-    "russian": "Правильный ответ"
+    "russian": "Правильный ответ",
+    "english": "Correct answer"
   },
   "I know this word": {
-    "russian": "Уже знаю это слово"
+    "russian": "Уже знаю это слово",
+    "english": "I know this word"
   },
   "Answer audio": {
-    "russian": "Аудио ответа"
+    "russian": "Аудио ответа",
+    "english": "Answer audio"
   },
   "All words in the deck are already learned, repeating already learned words": {
-    "russian": "Все слова в наборе уже выучены, повторяем уже выученные слова"
+    "russian": "Все слова в наборе уже выучены, повторяем уже выученные слова",
+    "english": "All words in the deck are already learned, repeating already learned words"
   },
   "All words in the deck have already been seen at least": {
-    "russian": "Все слова в наборе появлялись уже как минимум"
+    "russian": "Все слова в наборе появлялись уже как минимум",
+    "english": "All words in the deck have already been seen at least"
   },
   "times, repeating already seen words": {
-    "russian": "раз(а), повторяем слова которые уже появлялись"
+    "russian": "раз(а), повторяем слова которые уже появлялись",
+    "english": "times, repeating already seen words"
   },
   "Could not create an exercise, will try again later": {
-    "russian": "Не смог создать упражнение, попробую позже"
+    "russian": "Не смог создать упражнение, попробую позже",
+    "english": "Could not create an exercise, will try again later"
   },
   "Thinking": {
-    "russian": "Думаю"
+    "russian": "Думаю",
+    "english": "Thinking"
   },
-  "Could not create an exercise, please try again later'": {
-    "russian": "Не смог создать упражнение, пожалуйста попробуйте позже"
+  "Could not create an exercise, please try again later": {
+    "russian": "Не смог создать упражнение, пожалуйста попробуйте позже",
+    "english": "Could not create an exercise, please try again later"
   },
   "Sorry, there are no reading topics for you": {
-    "russian": "Извините, но для вас нет тем для прочтения"
+    "russian": "Извините, но для вас нет тем для прочтения",
+    "english": "Sorry, there are no reading topics for you"
   },
   "Type the word that you would like to add": {
-    "russian": "Отправьте мне слово которое вы хотите добавить"
+    "russian": "Отправьте мне слово которое вы хотите добавить",
+    "english": "Type the word that you would like to add"
   },
   "You can only add words to the decks that you created": {
-    "russian": "Слова можно добавлять только в те наборы которые вы создали сами"
+    "russian": "Слова можно добавлять только в те наборы которые вы создали сами",
+    "english": "You can only add words to the decks that you created"
   },
   "Number of known words": {
-    "russian": "Количество выученных слов"
+    "russian": "Количество выученных слов",
+    "english": "Number of known words"
   },
   "List of known words": {
-    "russian": "Список выученных слов"
+    "russian": "Список выученных слов",
+    "english": "List of known words"
   },
   "Current deck is": {
-    "russian": "Текущий набор называется"
+    "russian": "Текущий набор называется",
+    "english": "Current deck is"
   },
   "Deck info": {
-    "russian": "Информация о наборе"
+    "russian": "Информация о наборе",
+    "english": "Deck info"
   },
   "Create a new deck by typing its name or select an existing deck": {
-    "russian": "Выберите существующий набор или создайте новый напечетав и отправив его имя"
+    "russian": "Выберите существующий набор или создайте новый напечетав и отправив его имя",
+    "english": "Create a new deck by typing its name or select an existing deck"
   },
   "Create a new deck by typing its name": {
-    "russian": "Создайте новый набор напечетав и отправив его имя"
+    "russian": "Создайте новый набор напечетав и отправив его имя",
+    "english": "Create a new deck by typing its name"
   },
   "Sorry, the exercise has been completed or is expired": {
-    "russian": "Извините, упражнение было выполнено или истек его срок действия"
+    "russian": "Извините, упражнение было выполнено или истек его срок действия",
+    "english": "Sorry, the exercise has been completed or is expired"
   },
   "The word": {
-    "russian": "Слово"
+    "russian": "Слово",
+    "english": "The word"
   },
   "is added to ignore list": {
-    "russian": "добавлено в игнор"
+    "russian": "добавлено в игнор",
+    "english": "is added to ignore list"
   },
   "Try to use the word": {
-    "russian": "Попробуйте ипользовать слово"
+    "russian": "Попробуйте ипользовать слово",
+    "english": "Try to use the word"
   },
   "in your translation": {
-    "russian": "в своем переводе"
+    "russian": "в своем переводе",
+    "english": "in your translation"
   },
   "is added to the list of known words": {
-    "russian": "добавлено в список слов которые вы уже знаете"
+    "russian": "добавлено в список слов которые вы уже знаете",
+    "english": "is added to the list of known words"
   },
   "Congrats, you already learned": {
-    "russian": "Поздравляем, вы уже выучили"
+    "russian": "Поздравляем, вы уже выучили",
+    "english": "Congrats, you already learned"
   },
   "words": {
-    "russian": "слов"
+    "russian": "слов",
+    "english": "words"
   },
   "No exercises or commands are running, this message will be ignored": {
-    "russian": "Нет текущих упражнений или команд, это сообщение будет проигнорировано"
+    "russian": "Нет текущих упражнений или команд, это сообщение будет проигнорировано",
+    "english": "No exercises or commands are running, this message will be ignored"
   },
   "The command has already been processed": {
-    "russian": "Эта команда уже была обработана"
+    "russian": "Эта команда уже была обработана",
+    "english": "The command has already been processed"
   },
   "Something went terribly wrong, please try again or notify the admin": {
-    "russian": "Что-то пошло не так, пожалуйста уведомити админа"
+    "russian": "Что-то пошло не так, пожалуйста уведомити админа",
+    "english": "Something went terribly wrong, please try again or notify the admin"
   },
   "Word": {
-    "russian": "Слово"
+    "russian": "Слово",
+    "english": "Word"
   },
   "is successfully added to deck": {
-    "russian": "успешно добавлено в набор"
+    "russian": "успешно добавлено в набор",
+    "english": "is successfully added to deck"
   },
   "Created deck": {
-    "russian": "Создан набор"
+    "russian": "Создан набор",
+    "english": "Created deck"
   },
   "and set is as a current deck": {
-    "russian": "и он выбран в качестве текущего"
+    "russian": "и он выбран в качестве текущего",
+    "english": "and set is as a current deck"
   },
   "Learning word": {
-    "russian": "Учим слово"
+    "russian": "Учим слово",
+    "english": "Learning word"
   },
   "of repetitions": {
-    "russian": "повторений"
+    "russian": "повторений",
+    "english": "of repetitions"
   },
   "Translate into": {
-    "russian": "Переведите на"
+    "russian": "Переведите на",
+    "english": "Translate into"
   },
   "Reference translation": {
-    "russian": "Пример перевода"
+    "russian": "Пример перевода",
+    "english": "Reference translation"
   },
   "Corrections": {
-    "russian": "Исправления"
+    "russian": "Исправления",
+    "english": "Corrections"
   },
   "You are a great language teacher": {
-    "russian": "Ты отличный преподаватель по языкам"
+    "russian": "Ты отличный преподаватель по языкам",
+    "english": "You are a great language teacher"
   },
   "User: Examples in": {
-    "russian": "Пользователь: Примеры на языке"
+    "russian": "Пользователь: Примеры на языке",
+    "english": "User: Examples in"
   },
   "of how to use the following word or frase": {
-    "russian": "как использовать слово или фразу"
+    "russian": "как использовать слово или фразу",
+    "english": "of how to use the following word or frase"
   },
   "If the word is a verb, add its conjugations in present tense for all subjects": {
-    "russian": "Если это слово глагол, то погажи как оно спрягается"
+    "russian": "Если это слово глагол, то погажи как оно спрягается",
+    "english": "If the word is a verb, add its conjugations in present tense for all subjects"
   },
   "Assistant": {
-    "russian": "Ассистент"
+    "russian": "Ассистент",
+    "english": "Assistant"
   },
   "User: Show me an example of using the word or phrase": {
-    "russian": "Покажи мне примеры использования слова или фразы"
+    "russian": "Покажи мне примеры использования слова или фразы",
+    "english": "User: Show me an example of using the word or phrase"
   },
   "in language": {
-    "russian": "на языке"
+    "russian": "на языке",
+    "english": "in language"
   },
   "at level of proficiency": {
-    "russian": "на уровне владения языком"
+    "russian": "на уровне владения языком",
+    "english": "at level of proficiency"
   },
   "Translation": {
-    "russian": "Перевод"
+    "russian": "Перевод",
+    "english": "Translation"
   },
   "Suggested word": {
-    "russian": "Предложенное слово"
+    "russian": "Предложенное слово",
+    "english": "Suggested word"
   },
   "Correction": {
-    "russian": "Исправление"
+    "russian": "Исправление",
+    "english": "Correction"
   },
   "italian": {
-    "russian": "итальянский"
+    "russian": "итальянский",
+    "english": "italian"
   },
   "uzbek": {
-    "russian": "узбекский"
+    "russian": "узбекский",
+    "english": "uzbek"
   }
 }
