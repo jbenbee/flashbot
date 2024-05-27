@@ -671,7 +671,7 @@ if __name__ == '__main__':
 
     # TODO: A user can only be assigned to one of the bots, not to multiple
     bot_tokens = {
-        # 'english': engbot_token,  # TODO
+        'english': engbot_token,
         'russian': rubot_token
     }
 
