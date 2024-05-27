@@ -219,7 +219,7 @@ def tel_send_message(chat_id, text, buttons=None):
         for button_id, button_text in buttons:
             buttons_list.append(
                 {
-                    "text": interface[button_text][uilang],
+                    "text": interface[button_text][uilang] if button_text in interface.keys() else button_text,
                     "callback_data": f"{button_text}_{button_id}" if button_id is not None else button_text
                 }
             )
