@@ -347,10 +347,12 @@ def execute_command_button(chat_id, lang, command, button_data):
 def execute_command_message(chat_id, lang, command, msg):
     uilang = user_config.get_user_ui_lang(chat_id)
     if command == '/add_word':
-        word = msg.strip()
+        # word = msg.strip()
+        words = msg.strip().split('\n')
         cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
-        word_id = words_db.add_new_word(word, lang)
-        decks_db.add_new_word(cur_deck_id, word_id)
+        for word in words:
+            word_id = words_db.add_new_word(word, lang)
+            decks_db.add_new_word(cur_deck_id, word_id)
         words_db.save_words_db()
         decks_db.save_decks_db()
         cur_deck = decks_db.get_deck_name(cur_deck_id)
