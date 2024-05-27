@@ -210,5 +210,9 @@
   "uzbek": {
     "russian": "узбекский",
     "english": "uzbek"
+  },
+  "Selected deck": {
+    "russian": "Выбранный набор",
+    "english": "Selected deck"
   }
 }
