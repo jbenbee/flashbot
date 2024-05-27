@@ -41,6 +41,9 @@ class UserConfig:
         self._lock.release()
         return ud_cpy
 
+    def get_user_ui_lang(self, chat_id):
+        return self._user_data[chat_id]['ui_language'] if 'ui_language' in self._user_data[chat_id].keys() else 'english'
+
     def set_deck(self, chat_id: str, deck_id: int):
         self._lock.acquire()
         self._user_data_orig[chat_id]['current_deck_id'] = deck_id

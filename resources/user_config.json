@@ -1,5 +1,6 @@
 {
     "<user 1 chat id>": {
+    "ui_language": "spanish",
     "language": "italian",
     "level": "B1",
     "max_tokens": 600,
