@@ -30,7 +30,7 @@ class WordsExerciseLearn(Exercise):
     def get_next_assistant_query(self, user_response) -> (str,int,bool):
         lang_tr = self.interface[self.lang][self.uilang]
         query = self.example_pre_prompt + '\n\n' + \
-                f'{self.interface["User: Examples in"][self.uilang]} "{lang_tr}" {self.interface["of how to use the following word or frase"][self.uilang]}: {self.word}. ' \
+                f'{self.interface["User: Examples in language"][self.uilang]} "{lang_tr}" {self.interface["of how to use the following word or frase"][self.uilang]}: {self.word}. ' \
                 f'{self.interface["If the word is a verb, add its conjugations in present tense for all subjects"][self.uilang]}.\n' \
                 f'{self.interface["Assistant"][self.uilang]}:\n'
         is_last = True
