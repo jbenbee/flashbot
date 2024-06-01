@@ -31,7 +31,7 @@ class WordsExerciseLearn(Exercise):
         lang_tr = self.interface[self.lang][self.uilang]
         query = self.example_pre_prompt + '\n\n' + \
                 f'{self.interface["User: Examples in language"][self.uilang]} "{lang_tr}" {self.interface["of how to use the following word or frase"][self.uilang]}: {self.word}. ' \
-                f'{self.interface["If the word is a verb, add its conjugations in present tense for all subjects"][self.uilang]}.\n' \
+                f'{self.interface["If the word is a verb, add its conjugations in present tense for all subjects. Otherwise just show 3 examples"][self.uilang]}.\n' \
                 f'{self.interface["Assistant"][self.uilang]}:\n'
         is_last = True
         return query, is_last
