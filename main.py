@@ -574,7 +574,7 @@ def webhook_func(local, url):
                 page = urllib.request.urlopen(f'https://api.telegram.org/bot{bot_token}/setWebhook?remove')
                 print(f'Remove webhook status: {page.getcode()}')
                 hookproc[bot_token].kill()
-            bport = port if args.local else bot_ports[port]
+            bport = port if args.local else bot_ports[bot_token]
             hookproc[bot_token] = set_webhook(bport, url, bot_token)
         time.sleep(sleep_time)  # refresh hook url
 
@@ -676,9 +676,13 @@ if __name__ == '__main__':
         'english': engbot_token,
         'russian': rubot_token
     }
-    bot_ports = {
+    bot_ports_lang = {
         'english': '443',
         'russian': '8443'
+    }
+    bot_ports_token = {
+        engbot_token: '443',
+        rubot_token: '8443'
     }
 
     openai_key = os.getenv('OPENAI_KEY')
