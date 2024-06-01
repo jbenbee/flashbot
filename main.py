@@ -228,7 +228,7 @@ def tel_send_message(chat_id, text, buttons=None):
         payload['reply_markup'] = {
             "inline_keyboard": buttons_to_send
         }
-    bot_port = bot_ports[uilang]
+    bot_port = bot_ports_lang[uilang]
     r = requests.post(f'{url}:{bot_port}', json=payload)
     return r
 
@@ -574,7 +574,7 @@ def webhook_func(local, url):
                 page = urllib.request.urlopen(f'https://api.telegram.org/bot{bot_token}/setWebhook?remove')
                 print(f'Remove webhook status: {page.getcode()}')
                 hookproc[bot_token].kill()
-            bport = port if args.local else bot_ports[bot_token]
+            bport = port if args.local else bot_ports_token[bot_token]
             hookproc[bot_token] = set_webhook(bport, url, bot_token)
         time.sleep(sleep_time)  # refresh hook url
 
