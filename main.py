@@ -229,7 +229,7 @@ def tel_send_message(chat_id, text, buttons=None):
             "inline_keyboard": buttons_to_send
         }
     bot_port = bot_ports_lang[uilang]
-    r = requests.post(f'{url}:{bot_port}', json=payload)
+    r = requests.post(f'{url}', json=payload)
     return r
 
 
