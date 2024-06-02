@@ -228,7 +228,8 @@ def tel_send_message(chat_id, text, buttons=None):
         payload['reply_markup'] = {
             "inline_keyboard": buttons_to_send
         }
-    r = requests.post(url, json=payload)
+    bot_port = bot_ports_lang[uilang]
+    r = requests.post(f'{url}', json=payload)
     return r
 
 
@@ -573,7 +574,8 @@ def webhook_func(local, url):
                 page = urllib.request.urlopen(f'https://api.telegram.org/bot{bot_token}/setWebhook?remove')
                 print(f'Remove webhook status: {page.getcode()}')
                 hookproc[bot_token].kill()
-            hookproc[bot_token] = set_webhook(port, url, bot_token)
+            bport = port if args.local else bot_ports_token[bot_token]
+            hookproc[bot_token] = set_webhook(bport, url, bot_token)
         time.sleep(sleep_time)  # refresh hook url
 
 
@@ -581,7 +583,7 @@ def set_webhook(port, url, bot_token):
     if url is not None:
         response = requests.post(
             url=f'https://api.telegram.org/bot{bot_token}/setWebhook',
-            data={'url': url, 'secret_token': secret_token}
+            data={'url': f'{url}:{port}', 'secret_token': secret_token}
         ).json()
         response_str = json.dumps(response, indent='\t')
         print(f'Setting webhook status: {response_str}')
@@ -673,6 +675,14 @@ if __name__ == '__main__':
     bot_tokens = {
         'english': engbot_token,
         'russian': rubot_token
+    }
+    bot_ports_lang = {
+        'english': '443',
+        'russian': '8443'
+    }
+    bot_ports_token = {
+        engbot_token: '443',
+        rubot_token: '8443'
     }
 
     openai_key = os.getenv('OPENAI_KEY')

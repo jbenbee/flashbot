@@ -163,17 +163,17 @@
     "russian": "Ты отличный преподаватель по языкам",
     "english": "You are a great language teacher"
   },
-  "User: Examples in": {
+  "User: Examples in language": {
     "russian": "Пользователь: Примеры на языке",
-    "english": "User: Examples in"
+    "english": "User: Examples in language"
   },
   "of how to use the following word or frase": {
     "russian": "как использовать слово или фразу",
     "english": "of how to use the following word or frase"
   },
-  "If the word is a verb, add its conjugations in present tense for all subjects": {
-    "russian": "Если это слово глагол, то погажи как оно спрягается",
-    "english": "If the word is a verb, add its conjugations in present tense for all subjects"
+  "If the word is a verb, add its conjugations in present tense for all subjects. Otherwise just show 3 examples": {
+    "russian": "Если это слово глагол, то погажи как оно спрягается. Иначе просто покажи 3 примера",
+    "english": "If the word is a verb, add its conjugations in present tense for all subjects. Otherwise just show 3 examples"
   },
   "Assistant": {
     "russian": "Ассистент",
@@ -210,6 +210,10 @@
   "uzbek": {
     "russian": "узбекский",
     "english": "uzbek"
+  },
+  "spanish": {
+    "russian": "испанский",
+    "english": "spanish"
   },
   "Selected deck": {
     "russian": "Выбранный набор",
