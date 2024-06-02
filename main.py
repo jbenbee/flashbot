@@ -117,7 +117,7 @@ def handle_new_exercise(chat_id, exercise):
 
     buttons = None
     if isinstance(exercise, WordsExerciseLearn):
-        buttons = [(exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
+        buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
     if isinstance(exercise, WordsExerciseTest):
         buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
 
@@ -323,6 +323,14 @@ def handle_exercise_button_press(chat_id, lang, udata, exercise):
                 get_audio(exercise.correct_answer(), file_path)
                 tel_send_audio(chat_id, file_path)
                 os.remove(file_path)
+            elif f'Next_{exercise.uid}' == udata:
+                tel_send_message(chat_id, f'{interface["Thinking"][uilang]}...')
+                exercise = get_new_word_exercise(chat_id, lang, 'learn')
+                if exercise is None:
+                    tel_send_message(chat_id, interface['Could not create an exercise, please try again later'][uilang])
+                    print(f'Could not create an exercise "words" for data "learn".')
+                else:
+                    handle_new_exercise(chat_id, exercise)
             else:
                 raise ValueError(f'Unknown callback data {udata}')
         else:
@@ -717,7 +725,7 @@ if __name__ == '__main__':
     shared_objs = [user_config, words_db, words_progress_db, decks_db, running_exercises, running_commands]
 
     # list of known exercise buttons
-    exercise_buttons = ['Ignore this word', 'Hint', 'Correct answer', 'I know this word', 'Answer audio']
+    exercise_buttons = ['Ignore this word', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next']
 
     port = 5001
     assistant_model_cheap = args.model_cheap

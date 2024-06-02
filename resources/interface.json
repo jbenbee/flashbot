@@ -19,6 +19,10 @@
     "russian": "Аудио ответа",
     "english": "Answer audio"
   },
+  "Next": {
+    "russian": "Еще",
+    "english": "Next"
+  },
   "All words in the deck are already learned, repeating already learned words": {
     "russian": "Все слова в наборе уже выучены, повторяем уже выученные слова",
     "english": "All words in the deck are already learned, repeating already learned words"
