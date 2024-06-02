@@ -24,6 +24,7 @@ class WordsExerciseLearn(Exercise):
         pass
 
     def get_next_message_to_user(self, query, assistant_response):
+        assistant_response = assistant_response.replace('**', '')
         mes = f'{self.interface["Learning word"][self.uilang]} "{self.word}" (# {self.interface["of repetitions"][self.uilang]}: {int(self.num_reps)}):\n\n{assistant_response}'
         return mes
 
@@ -80,6 +81,9 @@ class WordsExerciseTest(Exercise):
         return self.assistant_responses[0]['answer']
 
     def get_next_message_to_user(self, query, assistant_response):
+
+        assistant_response = assistant_response.replace('**', '')
+
         # parse the response
         if self.is_first_message_to_user:
 
