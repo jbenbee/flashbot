@@ -222,5 +222,41 @@
   "Selected deck": {
     "russian": "Выбранный набор",
     "english": "Selected deck"
+  },
+  "Start the sentence with a verb": {
+    "russian": "Начни предложение с глагола",
+    "english": "Start the sentence with a verb"
+  },
+  "Start the sentence with a noun": {
+    "russian": "Начни предложение с существительного",
+    "english": "Start the sentence with a noun"
+  },
+  "Start the sentence with a adverb": {
+    "russian": "Начни предложение с наречия",
+    "english": "Start the sentence with a adverb"
+  },
+  "Start the sentence with a name": {
+    "russian": "Начни предложение с имени",
+    "english": "Start the sentence with a name"
+  },
+  "Start the sentence with a pronoun": {
+    "russian": "Начни предложение с местоимения",
+    "english": "Start the sentence with a pronoun"
+  },
+  "Show me examples of how to use the word": {
+    "russian": "Покажи мне примеры использования слова",
+    "english": "Show me examples of how to use the word"
+    },
+  "Show me examples of how to use the phrase": {
+    "russian": "Покажи мне примеры использования фразы",
+    "english": "Show me examples of how to use the phrase"
+    },
+  "in": {
+    "russian": "по",
+    "english": "in"
+  },
+  "to mean": {
+    "russian": "в значении",
+    "english": "to mean"
   }
 }
