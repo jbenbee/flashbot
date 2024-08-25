@@ -8,9 +8,10 @@ from exercise import Exercise
 
 
 class WordsExerciseLearn(Exercise):
-    def __init__(self, word, word_id, lang, uilang, num_reps, interface):
+    def __init__(self, word, meaning, word_id, lang, uilang, num_reps, interface):
         super().__init__()
         self.word = word
+        self.meaning = meaning
         self.word_id = word_id
         self.lang = lang
         self.uilang = uilang
@@ -34,7 +35,8 @@ class WordsExerciseLearn(Exercise):
         #         f'{self.interface["User: Examples in language"][self.uilang]} "{lang_tr}" {self.interface["of how to use the following word or frase"][self.uilang]}: {self.word}. ' \
         #         f'{self.interface["If the word is a verb, add its conjugations in present tense for all subjects. Otherwise just show 3 examples"][self.uilang]}.\n' \
         #         f'{self.interface["Assistant"][self.uilang]}:\n'
-        query = f'{self.interface["User: Examples in language"][self.uilang]} "{lang_tr}" {self.interface["of how to use the following word or frase"][self.uilang]}: {self.word}. ' \
+        meaning = '' if not isinstance(self.meaning, str) else f' ({self.meaning})'
+        query = f'{self.interface["User: Examples in language"][self.uilang]} "{lang_tr}" {self.interface["of how to use the following word or frase"][self.uilang]}: {self.word}{meaning}. ' \
                 f'{self.interface["If the word is a verb, add its conjugations in present tense for all subjects. Otherwise just show 3 examples"][self.uilang]}.\n' \
                 f'{self.interface["Assistant"][self.uilang]}:\n'
         is_last = True

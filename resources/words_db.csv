@@ -1,6 +1,6 @@
-id,word,lang,tags
-0,abundar,common verbs,spanish,
-1,aclarar,common verbs,spanish,
-2,a basso costo,B1-B2,italian,
-3,pianificare,B1-B2,italian,
-4,per cui,B1-B2,italian,
+id,word,lang,tags,meaning
+0,abundar,common verbs,spanish,to abound,
+1,aclarar,common verbs,spanish,,
+2,a basso costo,B1-B2,italian,,
+3,pianificare,B1-B2,italian,to plan,
+4,per cui,B1-B2,italian,,

@@ -84,6 +84,7 @@ class LearningPlan:
         next_exercise_data = words.sample(n=1, weights=np.array(weights))
         next_exercise_word = next_exercise_data['word'].item()
         next_exercise_word_id = next_exercise_data['id'].item()
+        next_exercise_word_meaning = next_exercise_data['meaning'].item()
         next_word_num_reps = next_exercise_data['num_reps'].item()
 
         user_data = self.user_config.get_user_data(chat_id)
@@ -94,7 +95,8 @@ class LearningPlan:
             exercise = WordsExerciseTest(word=next_exercise_word, word_id=next_exercise_word_id, lang=lang, uilang=uilang, level=user_level, interface=self.interface,
                                          add_metrics=show_test_metrics)
         else:
-            exercise = WordsExerciseLearn(word=next_exercise_word, word_id=next_exercise_word_id, lang=lang, uilang=uilang, num_reps=next_word_num_reps, interface=self.interface)
+            exercise = WordsExerciseLearn(word=next_exercise_word, meaning=next_exercise_word_meaning,
+                                          word_id=next_exercise_word_id, lang=lang, uilang=uilang, num_reps=next_word_num_reps, interface=self.interface)
 
         return exercise
 

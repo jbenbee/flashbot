@@ -657,7 +657,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--local", action='store_true', help="Run locally")
     parser.add_argument("--webhook", type=str, help="Webhook for telegram")
-    parser.add_argument("--model_cheap", type=str, default="gpt-3.5-turbo")
+    parser.add_argument("--model_cheap", type=str, default="gpt-4o-mini")
     parser.add_argument("--model_good", type=str, default="gpt-4")
 
     args = parser.parse_args()
