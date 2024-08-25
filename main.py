@@ -97,10 +97,10 @@ def handle_new_exercise(chat_id, exercise):
     nattempts = 0
     max_attempts = 4
     responded_correctly = False
-
+    lang = user_config.get_user_data(chat_id)['language']
     while not responded_correctly and nattempts < max_attempts:
         nattempts += 1
-        model = assistant_model_cheap if (nattempts < max_attempts - 1) and (uilang not in ['uzbek']) else assistant_model_good
+        model = assistant_model_cheap if (nattempts < max_attempts - 1) and (lang not in ['uzbek']) else assistant_model_good
         assistant_response = get_assistant_response(next_query, tokens, model=model, uilang=uilang)
         if assistant_response is None:
             responded_correctly = False
