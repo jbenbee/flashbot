@@ -30,8 +30,11 @@ class WordsExerciseLearn(Exercise):
 
     def get_next_assistant_query(self, user_response) -> (str,int,bool):
         lang_tr = self.interface[self.lang][self.uilang]
-        query = self.example_pre_prompt + '\n\n' + \
-                f'{self.interface["User: Examples in language"][self.uilang]} "{lang_tr}" {self.interface["of how to use the following word or frase"][self.uilang]}: {self.word}. ' \
+        # query = self.example_pre_prompt + '\n\n' + \
+        #         f'{self.interface["User: Examples in language"][self.uilang]} "{lang_tr}" {self.interface["of how to use the following word or frase"][self.uilang]}: {self.word}. ' \
+        #         f'{self.interface["If the word is a verb, add its conjugations in present tense for all subjects. Otherwise just show 3 examples"][self.uilang]}.\n' \
+        #         f'{self.interface["Assistant"][self.uilang]}:\n'
+        query = f'{self.interface["User: Examples in language"][self.uilang]} "{lang_tr}" {self.interface["of how to use the following word or frase"][self.uilang]}: {self.word}. ' \
                 f'{self.interface["If the word is a verb, add its conjugations in present tense for all subjects. Otherwise just show 3 examples"][self.uilang]}.\n' \
                 f'{self.interface["Assistant"][self.uilang]}:\n'
         is_last = True
@@ -138,9 +141,11 @@ class WordsExerciseTest(Exercise):
     def get_next_answer_test_query(self, user_response):
         lang_tr = self.interface[self.lang][self.uilang]
         if self.is_first_message_to_user:
+            part_of_speech = random.choice(['verb', 'noun', 'name', 'adverb', 'pronoun'])
             query = self.exercise_pre_prompt + '\n\n' + \
                     f'{self.interface["User: Show me an example of using the word or phrase"][self.uilang]} "{self.word}" ' \
-                    f'{self.interface["in language"][self.uilang]} "{lang_tr}" {self.interface["at level of proficiency"][self.uilang]} "{self.level}":\n' \
+                    f'{self.interface["in language"][self.uilang]} "{lang_tr}" {self.interface["at level of proficiency"][self.uilang]} "{self.level}". ' \
+                    f'{self.interface["in language"][self.uilang]} "{lang_tr}" {self.interface[f"Start the sentence with a {part_of_speech}"][self.uilang]} "{self.level}".\n' \
                     f'{self.interface["Assistant"][self.uilang]}:\n'
 
         else:

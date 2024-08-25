@@ -1,16 +1,16 @@
 User:
-Show me an example of using the word or phrase "dimenticare" in "italian" at level of proficiency "A2"
+Show me an example of using the word or phrase "dimenticare" in "italian" at level of proficiency "A2". Start the sentence with a name.
 Assistant:
 Giulia ha dimenticato le chiavi a casa. Giulia forgot the keys at home.
 
 
 User:
-Show me an example of using the word or phrase "difundir" in "spanish" at level of proficiency "C1"
+Show me an example of using the word or phrase "difundir" in "spanish" at level of proficiency "C1". Start the sentence with an adverb.
 Assistant:
 Mañana difundiremos las nuevas políticas de la empresa entre todos los empleados. Tomorrow, we will disseminate the new company policies among all the employees.
 
 
 User:
-Show me an example of using the word or phrase "дом" in "russian" at level of proficiency "A1"
+Show me an example of using the word or phrase "дом" in "russian" at level of proficiency "A1". Start the sentence with a pronoun.
 Assistant:
 Это мой дом. This is my house.

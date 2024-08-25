@@ -72,7 +72,7 @@ def get_assistant_response(query, tokens, model, uilang):
 
 
 def refused_answer(text):
-    return any([m in text.lower() for m in ['mi dispiace', 'i am sorry', "i'm sorry", "lo siento", 'per favore', 'por favor']])
+    return any([m in text.lower() for m in ['простите', 'извините', 'извини', 'прости', 'пожалуйста', 'mi dispiace', 'i am sorry', "i'm sorry", "lo siento", 'per favore', 'por favor']])
 
 
 def get_audio(query, file_path):
@@ -100,7 +100,7 @@ def handle_new_exercise(chat_id, exercise):
 
     while not responded_correctly and nattempts < max_attempts:
         nattempts += 1
-        model = assistant_model_cheap if nattempts < max_attempts - 1 else assistant_model_good
+        model = assistant_model_cheap if (nattempts < max_attempts - 1) and (uilang not in ['uzbek']) else assistant_model_good
         assistant_response = get_assistant_response(next_query, tokens, model=model, uilang=uilang)
         if assistant_response is None:
             responded_correctly = False
