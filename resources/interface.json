@@ -262,5 +262,37 @@
   "If the word is a verb, show its conjugations in present tense for all subjects": {
     "russian": "Если это слово глагол, то покажи его спряжения",
     "english": "If the word is a verb, show its conjugations in present tense for all subjects"
+  },
+  "Example usage": {
+    "russian": "Пример использования",
+    "english": "Example usage"
+  },
+  "Conjugations in present tense": {
+    "russian": "Склонения в настоящем времени",
+    "english": "Conjugations in present tense"
+  },
+  "Show me 3 examples of using the word or phrase": {
+    "russian": "Покажи мне 3 примера использования слова или фразы",
+    "english": "Show me 3 examples of using the word or phrase"
+  },
+  "Start examples with a verb, noun, name, adverb or pronoun":
+  {
+    "english": "Start examples with a verb, noun, name, adverb or pronoun",
+    "russian": "Начни примеры с глагола, существительного, имени, наречия или местоимения"
+  },
+  "Translation score":
+  {
+    "english": "Translation score",
+    "russian": "Оценка перевода"
+  },
+  "Score justification":
+  {
+    "english": "Score justification",
+    "russian": "Объяснение оценки"
+  },
+  "Explanation of mistakes":
+  {
+    "english": "Explanation of mistakes",
+    "russian": "Объяснение ошибок"
   }
 }

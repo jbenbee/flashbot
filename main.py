@@ -36,39 +36,49 @@ from running_exercises import RunningExercises
 
 app = Flask(__name__)
 
+# make all prompts in english
 
-def get_assistant_response(query, tokens, model, uilang):
-
+def get_assistant_response(query, tokens, model_base, model_substitute, uilang, response_format=None, validation_cls=None):
+    """
+    model_base is tried first and if the request fails a few times, model_substitute is used instead
+    """
     nattempts = 0
     messages = [
                 {"role": "system", "content": interface["You are a great language teacher"][uilang]},
                 {"role": "user", "content": query},
             ]
-    while nattempts < 3:
+    model = model_base
+    max_attempts = 3
+    while nattempts < max_attempts:
         nattempts += 1
         try:
             print(f'Sending a request to chatgpt ({model})...')
             response = client.chat.completions.create(
                 model=model,
                 messages=messages,
-                max_tokens=tokens
+                max_tokens=tokens,
+                response_format=response_format
             )
             break
         except openai.OpenAIError:
             time.sleep(nattempts)
+        if nattempts == max_attempts - 1:
+            model = model_substitute
     print('Done.')
 
     if nattempts == 3:
         print('The assistant raised an error.')
-        text = None
-    else:
-        try:
-            text = response.choices[0].message.content.strip()
-        except Exception as e:
-            print(response)
-            text = None
+        raise ValueError('The model could not respond in required format')
+    if response.choices[0].message.refusal:
+        print('The assistant refused to respond.')
+        raise ValueError('The model refused to respond')
 
-    return text
+    if validation_cls is not None:
+        validated_resp = validation_cls.parse_raw(response.choices[0].message.content)
+    else:
+        validated_resp = response.choices[0].message.content
+
+    return validated_resp
 
 
 def refused_answer(text):
@@ -93,36 +103,21 @@ def handle_new_exercise(chat_id, exercise):
     if isinstance(exercise, WordsExerciseLearn):
         increment_word_reps(chat_id, exercise.word_id)
         words_progress_db.save_progress()
-    next_query, is_last_query = exercise.get_next_assistant_query(user_response=None)
-    nattempts = 0
-    max_attempts = 4
-    responded_correctly = False
+    next_query, response_format, validation_cls, is_last_query = exercise.get_next_assistant_query(user_response=None)
     lang = user_config.get_user_data(chat_id)['language']
-    while not responded_correctly and nattempts < max_attempts:
-        nattempts += 1
-        model = assistant_model_cheap if (nattempts < max_attempts - 1) and (lang not in ['uzbek']) else assistant_model_good
-        assistant_response = get_assistant_response(next_query, tokens, model=model, uilang=uilang)
-        if assistant_response is None:
-            responded_correctly = False
-        elif refused_answer(assistant_response):
-            print(f'Detected REFUSED ANSWER: {assistant_response}')
-            responded_correctly = False
-        else:
-            try:
-                message = exercise.get_next_message_to_user(next_query, assistant_response)
-                responded_correctly = True
-            except Exception as e:
-                print(f'Wrong response: {assistant_response}\nException: {e}')
-                responded_correctly = False
-
-    buttons = None
-    if isinstance(exercise, WordsExerciseLearn):
-        buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
-    if isinstance(exercise, WordsExerciseTest):
-        buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
-
-    if nattempts == max_attempts and not responded_correctly:
-        message = 'Sorry, the assistant raised some error while processing this request. Please retry.'
+    model = assistant_model_cheap if (lang not in ['uzbek']) else assistant_model_good
+    try:
+        assistant_response = get_assistant_response(next_query, tokens, model_base=model,
+                                                    model_substitute=assistant_model_good, uilang=uilang,
+                                                    response_format=response_format, validation_cls=validation_cls)
+        message = exercise.get_next_message_to_user(next_query, assistant_response)
+        buttons = None
+        if isinstance(exercise, WordsExerciseLearn):
+            buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
+        if isinstance(exercise, WordsExerciseTest):
+            buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
+    except Exception as e:
+        message = f'Error: {e}'
         buttons = None
 
     tel_send_message(chat_id, message, buttons=buttons)
@@ -392,10 +387,10 @@ def handle_user_message(chat_id, lang, tokens, msg):
         exercise = running_exercises.current_exercise(chat_id)
 
         tel_send_message(chat_id, 'Thinking...')
-        next_query, is_last_query = exercise.get_next_assistant_query(user_response=msg)
-        assistant_response = get_assistant_response(next_query, tokens, model=assistant_model_cheap, uilang=uilang)
-        if assistant_response is None:
-            raise ValueError('Assistant did not reply.')
+        next_query, response_format, validation_cls, is_last_query = exercise.get_next_assistant_query(user_response=msg)
+        assistant_response = get_assistant_response(next_query, tokens, model_base=assistant_model_cheap,
+                                                    model_substitute=assistant_model_good,
+                                                    uilang=uilang, response_format=response_format, validation_cls=validation_cls)
         buttons = None
         if isinstance(exercise, WordsExerciseLearn):
             buttons = [(exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
@@ -698,7 +693,7 @@ if __name__ == '__main__':
         with open(Path('api_keys/openai_api.txt'), 'r') as fp:
                 lines = fp.readlines()
                 openai_key = lines[0].strip()
-    client = openai.OpenAI(api_key=openai_key)
+    client = openai.OpenAI(api_key=openai_key, timeout=20.0, max_retries=0)
 
     user_data_root = os.getenv('CH_USER_DATA_ROOT')
     user_data_root = 'resources' if user_data_root is None else user_data_root
