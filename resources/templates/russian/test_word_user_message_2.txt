@@ -1,6 +1,7 @@
-Оценка перевода: {{score}}
+Оценка перевода: {{score}} (из 5)
 
 Объяснение оценки: {{justification}}
 {% if explanation %}
 Объяснение ошибок: {{explanation}}
 {% endif %}
+Правильный ответ: {{corrected_translation}}

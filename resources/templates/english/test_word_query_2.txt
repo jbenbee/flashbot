@@ -1,5 +1,6 @@
 Rate the following translation on a scale from 1 to 5 according to how grammatically correct and natural it is.
-1 means the translation has several major mistakes, 5 means that the translation is correct and it could have been written by a native speaker.
+1 means the translation has major mistakes, 5 means that the translation is correct and it could have been written by a native speaker.
 Justify your score in one sentence and if the translation has mistakes, explain them.
+Show a translation where the identified mistakes are corrected.
 Sentence: {{sentence}}
 Translation: {{user_response}}
