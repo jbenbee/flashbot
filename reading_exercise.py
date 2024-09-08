@@ -35,4 +35,4 @@ class ReadingExercise(Exercise):
         query = query.replace('<LANG>', self.lang)
         self.topic = next_exercise_data["topics"][tidx]
         is_last = True
-        return query, is_last
+        return query, None, None, is_last

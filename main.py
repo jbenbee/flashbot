@@ -10,6 +10,7 @@ from pathlib import Path
 from signal import signal, SIGINT
 import re
 
+import jinja2
 import joblib
 import numpy as np
 import pandas as pd
@@ -132,8 +133,6 @@ def get_new_word_exercise(chat_id, lang, exercise_data):
         print(f'There are no exercises of type "words" for data {exercise_data}.')
         exercise = lp.get_next_words_exercise(chat_id, lang, mode='repeat_test')
     elif exercise is None and exercise_data == 'learn':
-        tel_send_message(chat_id,
-                         f'{interface["All words in the deck have already been seen at least"][uilang]} {lp.test_threshold} {interface["times, repeating already seen words"][uilang]}.')
         print(f'There are no exercises of type "words" for data {exercise_data}.')
         exercise = lp.get_next_words_exercise(chat_id, lang, mode='repeat_learn')
     return exercise
@@ -266,15 +265,24 @@ def handle_commands(chat_id, lang, command):
             tel_send_message(chat_id, f'Thinking...')
             known_words = get_known_words(chat_id, lang)
             known_words_str = "\n".join(known_words)
-            tel_send_message(chat_id, f'{interface["Number of known words"][uilang]}: {len(known_words)}\n'
-                                      f'{interface["List of known words"][uilang]}:\n{known_words_str}')
+
+            environment = jinja2.Environment()
+            message_template = templates[uilang]['known_words_info_message']
+            template = environment.from_string(message_template)
+            mes = template.render(n_known_words=len(known_words), list_known_words=known_words_str)
+            tel_send_message(chat_id, mes)
+
         elif command == '/cur_deck_info':
             cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
             cur_deck_name = decks_db.get_deck_name(cur_deck_id)
             deck_info = get_deck_info(chat_id, lang, cur_deck_id)
-            tel_send_message(chat_id, f'{interface["Current deck is"][uilang]} "{cur_deck_name}".\n'
-                                      f'{interface["Deck info"][uilang]}:\n'
-                                      f'{deck_info}')
+
+            environment = jinja2.Environment()
+            message_template = templates[uilang]['current_deck_info_message']
+            template = environment.from_string(message_template)
+            mes = template.render(cur_deck_name=cur_deck_name, deck_info=deck_info)
+            tel_send_message(chat_id, mes)
+
         elif command == '/sel_deck':
             running_commands.add_command(chat_id, command)
             decks = decks_db.get_decks_lang(str(chat_id), lang)
@@ -299,20 +307,42 @@ def handle_exercise_button_press(chat_id, lang, udata, exercise):
             if f'Ignore this word_{exercise.uid}' == udata:
                 words_progress_db.ignore_word(chat_id, exercise.word_id)
                 words_progress_db.save_progress()
-                tel_send_message(chat_id, f'{interface["The word"][uilang]} "{exercise.word}" {interface["is added to ignore list"][uilang]}')
+
+                environment = jinja2.Environment()
+                message_template = templates[uilang]['word_ignore_message']
+                template = environment.from_string(message_template)
+                mes = template.render(word=exercise.word)
+                tel_send_message(chat_id, mes)
+
             elif f'Hint_{exercise.uid}' == udata:
-                tel_send_message(chat_id, f'{interface["Try to use the word"][uilang]} "{exercise.word}" {interface["in your translation"][uilang]}')
+
+                environment = jinja2.Environment()
+                message_template = templates[uilang]['hint_message']
+                template = environment.from_string(message_template)
+                mes = template.render(word=exercise.word)
+                tel_send_message(chat_id, mes)
+
             elif f'Correct answer_{exercise.uid}' == udata:
                 tel_send_message(chat_id, exercise.correct_answer())
             elif f'I know this word_{exercise.uid}' == udata:
                 words_progress_db.add_known_word(chat_id, exercise.word_id)
                 words_progress_db.save_progress()
-                tel_send_message(chat_id, f'{interface["The word"][uilang]} "{exercise.word}" {interface["is added to the list of known words"][uilang]}')
+
+                environment = jinja2.Environment()
+                message_template = templates[uilang]['know_word_message']
+                template = environment.from_string(message_template)
+                mes = template.render(word=exercise.word)
+                tel_send_message(chat_id, mes)
 
                 known_words = get_known_words(chat_id, lang)
                 n_known_words = len(known_words)
                 if n_known_words % 5 == 0:
-                    tel_send_message(chat_id, f'{interface["Congrats, you already learned"][uilang]} {n_known_words} {interface["words"][uilang]}!')
+
+                    message_template = templates[uilang]['congrats_learn_message']
+                    template = environment.from_string(message_template)
+                    mes = template.render(n_known_words=n_known_words)
+                    tel_send_message(chat_id, mes)
+
             elif f'Answer audio_{exercise.uid}' == udata:
                 file_path = f'{chat_id}_{exercise.uid}.mp3'
                 get_audio(exercise.correct_answer(), file_path)
@@ -340,9 +370,12 @@ def execute_command_button(chat_id, lang, command, button_data):
         cur_deck_id = int(cur_deck_id)
         user_config.set_deck(str(chat_id), cur_deck_id)
         deck_info = get_deck_info(chat_id, lang, cur_deck_id)
-        user_msg = f'{interface["Selected deck"][uilang]} "{cur_deck_name}".\n'\
-                   f'{interface["Deck info"][uilang]}:\n'\
-                   f'{deck_info}'
+
+        environment = jinja2.Environment()
+        message_template = templates[uilang]['sel_deck_message']
+        template = environment.from_string(message_template)
+        user_msg = template.render(cur_deck_name=cur_deck_name, deck_info=deck_info)
+
     else:
         raise ValueError(f'Unexpected command {command}.')
     return user_msg
@@ -360,13 +393,23 @@ def execute_command_message(chat_id, lang, command, msg):
         words_db.save_words_db()
         decks_db.save_decks_db()
         cur_deck = decks_db.get_deck_name(cur_deck_id)
-        user_msg = f'{interface["Word"][uilang]} "{word}" {interface["is successfully added to deck"][uilang]} "{cur_deck}".'
+
+        environment = jinja2.Environment()
+        message_template = templates[uilang]['add_word_message']
+        template = environment.from_string(message_template)
+        user_msg = template.render(word=word, cur_deck=cur_deck)
+
     elif command == '/sel_deck':
         # create a new deck
         deck_id = decks_db.create_deck(str(chat_id), msg, lang)
         user_config.set_deck(str(chat_id), deck_id)
         decks_db.save_decks_db()
-        user_msg = f'{interface["Created deck"][uilang]} "{msg}" {interface["and set is as a current deck"][uilang]}'
+
+        environment = jinja2.Environment()
+        message_template = templates[uilang]['create_deck_message']
+        template = environment.from_string(message_template)
+        user_msg = template.render(msg=msg)
+
     else:
         raise ValueError(f'Unexpected command {command}.')
     return user_msg
@@ -469,6 +512,7 @@ def handle_request(msg):
         release_all_locks()
         print(e)
         tel_send_message(chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
+        # raise e  # TODO
     # lock.release()
 
 
@@ -647,6 +691,26 @@ def increment_word_reps(chat_id, word_id):
         words_progress_db.add_known_word(chat_id, word_id)
 
 
+def load_templates(path: str):
+    templates = dict()
+
+    for lang in os.listdir(path):
+        lang_path = os.path.join(path, lang)
+
+        if os.path.isdir(lang_path):
+            templates[lang] = {}
+
+            for template_name in os.listdir(lang_path):
+                template_path = os.path.join(lang_path, template_name)
+
+                if os.path.isfile(template_path):
+                    with open(template_path, 'r', encoding='utf-8') as file:
+                        tname = os.path.splitext(template_name)[0]
+                        templates[lang][tname] = file.read()
+
+    return templates
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -714,7 +778,9 @@ if __name__ == '__main__':
     with open(user_data_root / 'interface.json', 'r', encoding='utf-8') as fp:
         interface = json.loads(fp.read())
 
-    lp = LearningPlan(interface, words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db,
+    templates = load_templates(str(user_data_root / 'templates'))
+
+    lp = LearningPlan(interface, templates, words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db,
                       reading_db=reading_db, user_config=user_config)
 
     shared_objs = [user_config, words_db, words_progress_db, decks_db, running_exercises, running_commands]

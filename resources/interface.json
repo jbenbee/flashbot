@@ -27,14 +27,6 @@
     "russian": "Все слова в наборе уже выучены, повторяем уже выученные слова",
     "english": "All words in the deck are already learned, repeating already learned words"
   },
-  "All words in the deck have already been seen at least": {
-    "russian": "Все слова в наборе появлялись уже как минимум",
-    "english": "All words in the deck have already been seen at least"
-  },
-  "times, repeating already seen words": {
-    "russian": "раз(а), повторяем слова которые уже появлялись",
-    "english": "times, repeating already seen words"
-  },
   "Could not create an exercise, will try again later": {
     "russian": "Не смог создать упражнение, попробую позже",
     "english": "Could not create an exercise, will try again later"
@@ -67,14 +59,6 @@
     "russian": "Список выученных слов",
     "english": "List of known words"
   },
-  "Current deck is": {
-    "russian": "Текущий набор называется",
-    "english": "Current deck is"
-  },
-  "Deck info": {
-    "russian": "Информация о наборе",
-    "english": "Deck info"
-  },
   "Create a new deck by typing its name or select an existing deck": {
     "russian": "Выберите существующий набор или создайте новый напечетав и отправив его имя",
     "english": "Create a new deck by typing its name or select an existing deck"
@@ -86,34 +70,6 @@
   "Sorry, the exercise has been completed or is expired": {
     "russian": "Извините, упражнение было выполнено или истек его срок действия",
     "english": "Sorry, the exercise has been completed or is expired"
-  },
-  "The word": {
-    "russian": "Слово",
-    "english": "The word"
-  },
-  "is added to ignore list": {
-    "russian": "добавлено в игнор",
-    "english": "is added to ignore list"
-  },
-  "Try to use the word": {
-    "russian": "Попробуйте ипользовать слово",
-    "english": "Try to use the word"
-  },
-  "in your translation": {
-    "russian": "в своем переводе",
-    "english": "in your translation"
-  },
-  "is added to the list of known words": {
-    "russian": "добавлено в список слов которые вы уже знаете",
-    "english": "is added to the list of known words"
-  },
-  "Congrats, you already learned": {
-    "russian": "Поздравляем, вы уже выучили",
-    "english": "Congrats, you already learned"
-  },
-  "words": {
-    "russian": "слов",
-    "english": "words"
   },
   "No exercises or commands are running, this message will be ignored": {
     "russian": "Нет текущих упражнений или команд, это сообщение будет проигнорировано",
@@ -127,85 +83,9 @@
     "russian": "Что-то пошло не так, пожалуйста уведомити админа",
     "english": "Something went terribly wrong, please try again or notify the admin"
   },
-  "Word": {
-    "russian": "Слово",
-    "english": "Word"
-  },
-  "is successfully added to deck": {
-    "russian": "успешно добавлено в набор",
-    "english": "is successfully added to deck"
-  },
-  "Created deck": {
-    "russian": "Создан набор",
-    "english": "Created deck"
-  },
-  "and set is as a current deck": {
-    "russian": "и он выбран в качестве текущего",
-    "english": "and set is as a current deck"
-  },
-  "Learning word": {
-    "russian": "Учим слово",
-    "english": "Learning word"
-  },
-  "of repetitions": {
-    "russian": "повторений",
-    "english": "of repetitions"
-  },
-  "Translate into": {
-    "russian": "Переведите на",
-    "english": "Translate into"
-  },
-  "Reference translation": {
-    "russian": "Пример перевода",
-    "english": "Reference translation"
-  },
-  "Corrections": {
-    "russian": "Исправления",
-    "english": "Corrections"
-  },
   "You are a great language teacher": {
     "russian": "Ты отличный преподаватель по языкам",
     "english": "You are a great language teacher"
-  },
-  "User: Examples in language": {
-    "russian": "Пользователь: Примеры на языке",
-    "english": "User: Examples in language"
-  },
-  "of how to use the following word or frase": {
-    "russian": "как использовать слово или фразу",
-    "english": "of how to use the following word or frase"
-  },
-  "If the word is a verb, add its conjugations in present tense for all subjects. Otherwise just show 3 examples": {
-    "russian": "Если это слово глагол, то погажи как оно спрягается. Иначе просто покажи 3 примера",
-    "english": "If the word is a verb, add its conjugations in present tense for all subjects. Otherwise just show 3 examples"
-  },
-  "Assistant": {
-    "russian": "Ассистент",
-    "english": "Assistant"
-  },
-  "User: Show me an example of using the word or phrase": {
-    "russian": "Покажи мне примеры использования слова или фразы",
-    "english": "User: Show me an example of using the word or phrase"
-  },
-  "in language": {
-    "russian": "на языке",
-    "english": "in language"
-  },
-  "at level of proficiency": {
-    "russian": "на уровне владения языком",
-    "english": "at level of proficiency"
-  },
-  "Translation": {
-    "russian": "Перевод",
-    "english": "Translation"
-  },
-  "Suggested word": {
-    "russian": "Предложенное слово",
-    "english": "Suggested word"
-  },
-  "Correction": {
-    "russian": "Исправление",
-    "english": "Correction"
   },
   "italian": {
     "russian": "итальянский",
@@ -222,77 +102,5 @@
   "Selected deck": {
     "russian": "Выбранный набор",
     "english": "Selected deck"
-  },
-  "Start the sentence with a verb": {
-    "russian": "Начни предложение с глагола",
-    "english": "Start the sentence with a verb"
-  },
-  "Start the sentence with a noun": {
-    "russian": "Начни предложение с существительного",
-    "english": "Start the sentence with a noun"
-  },
-  "Start the sentence with a adverb": {
-    "russian": "Начни предложение с наречия",
-    "english": "Start the sentence with a adverb"
-  },
-  "Start the sentence with a name": {
-    "russian": "Начни предложение с имени",
-    "english": "Start the sentence with a name"
-  },
-  "Start the sentence with a pronoun": {
-    "russian": "Начни предложение с местоимения",
-    "english": "Start the sentence with a pronoun"
-  },
-  "Show me 3 examples of how to use the word": {
-    "russian": "Покажи мне 3 примера использования слова",
-    "english": "Show me 3 examples of how to use the word"
-    },
-  "Show me 3 examples of how to use the phrase": {
-    "russian": "Покажи мне примеры использования фразы",
-    "english": "Show me 3 examples of how to use the phrase"
-    },
-  "in": {
-    "russian": "по",
-    "english": "in"
-  },
-  "to mean": {
-    "russian": "в значении",
-    "english": "to mean"
-  },
-  "If the word is a verb, show its conjugations in present tense for all subjects": {
-    "russian": "Если это слово глагол, то покажи его спряжения",
-    "english": "If the word is a verb, show its conjugations in present tense for all subjects"
-  },
-  "Example usage": {
-    "russian": "Пример использования",
-    "english": "Example usage"
-  },
-  "Conjugations in present tense": {
-    "russian": "Склонения в настоящем времени",
-    "english": "Conjugations in present tense"
-  },
-  "Show me 3 examples of using the word or phrase": {
-    "russian": "Покажи мне 3 примера использования слова или фразы",
-    "english": "Show me 3 examples of using the word or phrase"
-  },
-  "Start examples with a verb, noun, name, adverb or pronoun":
-  {
-    "english": "Start examples with a verb, noun, name, adverb or pronoun",
-    "russian": "Начни примеры с глагола, существительного, имени, наречия или местоимения"
-  },
-  "Translation score":
-  {
-    "english": "Translation score",
-    "russian": "Оценка перевода"
-  },
-  "Score justification":
-  {
-    "english": "Score justification",
-    "russian": "Объяснение оценки"
-  },
-  "Explanation of mistakes":
-  {
-    "english": "Explanation of mistakes",
-    "russian": "Объяснение ошибок"
   }
 }

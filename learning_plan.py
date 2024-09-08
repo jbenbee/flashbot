@@ -7,13 +7,14 @@ from words_exercise import WordsExerciseLearn, WordsExerciseTest
 
 
 class LearningPlan:
-    def __init__(self, interface, words_progress_db=None, words_db=None, decks_db=None, reading_db=None, user_config=None):
+    def __init__(self, interface, templates, words_progress_db=None, words_db=None, decks_db=None, reading_db=None, user_config=None):
         self.progress_db = words_progress_db
         self.words_db = words_db
         self.decks_db = decks_db
         self.reading_db = reading_db
         self.user_config = user_config
         self.interface = interface
+        self.templates = templates
 
         # Words that are repeated at least this many times will be used for testing exercises,
         # others will be used for learning exercises.
@@ -92,11 +93,12 @@ class LearningPlan:
         user_level = self.user_config.get_user_data(chat_id)['level']
         uilang = self.user_config.get_user_ui_lang(chat_id)
         if 'test' == mode:
-            exercise = WordsExerciseTest(word=next_exercise_word, word_id=next_exercise_word_id, lang=lang, uilang=uilang, level=user_level, interface=self.interface,
+            exercise = WordsExerciseTest(word=next_exercise_word, word_id=next_exercise_word_id, lang=lang, uilang=uilang, level=user_level, interface=self.interface, templates=self.templates,
                                          add_metrics=show_test_metrics)
         else:
             exercise = WordsExerciseLearn(word=next_exercise_word, meaning=next_exercise_word_meaning,
-                                          word_id=next_exercise_word_id, lang=lang, uilang=uilang, num_reps=next_word_num_reps, interface=self.interface)
+                                          word_id=next_exercise_word_id, lang=lang, uilang=uilang, num_reps=next_word_num_reps, interface=self.interface,
+                                          templates=self.templates)
 
         return exercise
 
