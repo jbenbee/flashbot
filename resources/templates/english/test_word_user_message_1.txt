@@ -1,0 +1,3 @@
+Translate into {{lang}}:
+
+{{test_sentence}}

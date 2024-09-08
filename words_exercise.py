@@ -9,14 +9,6 @@ from pydantic import BaseModel, Extra, ValidationError
 from exercise import Exercise
 
 
-class WordExampleSchema(BaseModel):
-    examples: List[str]
-    conjugations: Optional[str]
-
-    class Config:
-        extra = 'forbid'
-
-
 class ExampleSentenceSchema(BaseModel):
     class Config:
         extra = 'forbid'
@@ -27,6 +19,14 @@ class ExampleSentenceSchema(BaseModel):
 
 class WordTestSchema(BaseModel):
     examples: List[ExampleSentenceSchema]
+
+    class Config:
+        extra = 'forbid'
+
+
+class WordExamplesSchema(BaseModel):
+    examples: List[ExampleSentenceSchema]
+    conjugations: Optional[str]
 
     class Config:
         extra = 'forbid'
@@ -58,26 +58,24 @@ class WordsExerciseLearn(Exercise):
 
     def get_next_message_to_user(self, query, assistant_response):
 
-        environment = jinja2.Environment()
         message_template = self.templates[self.uilang]['learn_word_user_message']
-        example_usage = '\n'.join([f'- {example}' for example in assistant_response.examples])
-        template = environment.from_string(message_template)
-        message = template.render(word=self.word, num_reps=self.num_reps, example_usage=example_usage, conjugations=assistant_response.conjugations)
+        examples = [(entry.example_sentence, entry.sentence_translation) for entry in assistant_response.examples]
+        template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+        message = template.render(word=self.word, num_reps=self.num_reps, examples=examples, conjugations=assistant_response.conjugations)
 
         return message
 
     def get_next_assistant_query(self, user_response):
 
-        environment = jinja2.Environment()
         message_template = self.templates[self.uilang]['learn_word_query']
-        template = environment.from_string(message_template)
+        template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         word_phrase = "word" if len(self.word.split()) == 1 else "phrase"
         lang_tr = self.interface[self.lang][self.uilang]
         query = template.render(word_phrase=word_phrase, word=self.word, meaning=self.meaning, lang=lang_tr)
 
         is_last = True
 
-        schema = WordExampleSchema.model_json_schema()
+        schema = WordExamplesSchema.model_json_schema()
 
         response_format = {
             "type": "json_schema",
@@ -87,7 +85,7 @@ class WordsExerciseLearn(Exercise):
                             }
         }
 
-        return query, response_format, WordExampleSchema, is_last
+        return query, response_format, WordExamplesSchema, is_last
 
 
 class WordsExerciseTest(Exercise):
@@ -137,15 +135,13 @@ class WordsExerciseTest(Exercise):
             lang_tr = self.interface[self.lang][self.uilang]
             self.is_first_message_to_user = False
 
-            environment = jinja2.Environment()
             message_template = self.templates[self.uilang]['test_word_user_message_1']
-            template = environment.from_string(message_template)
+            template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             mes = template.render(lang=lang_tr, test_sentence=test_sentence)
 
         else:
-            environment = jinja2.Environment()
             message_template = self.templates[self.uilang]['test_word_user_message_2']
-            template = environment.from_string(message_template)
+            template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             mes = template.render(score=assistant_response.translation_score,
                                   justification=assistant_response.score_justification,
                                   explanation=assistant_response.mistakes_explanation)
@@ -157,9 +153,8 @@ class WordsExerciseTest(Exercise):
         if self.is_first_message_to_user:
             # part_of_speech = random.choice(['verb', 'noun', 'name', 'adverb', 'pronoun'])
 
-            environment = jinja2.Environment()
             message_template = self.templates[self.uilang]['test_word_query_1']
-            template = environment.from_string(message_template)
+            template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             query = template.render(word=self.word, lang=lang_tr, level=self.level)
 
             validation_cls = WordTestSchema
@@ -176,9 +171,8 @@ class WordsExerciseTest(Exercise):
         else:
             self.user_messages.append(user_response)
 
-            environment = jinja2.Environment()
             message_template = self.templates[self.uilang]['test_word_query_2']
-            template = environment.from_string(message_template)
+            template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             query = template.render(user_response=user_response, sentence=self.assistant_responses[0]['test'])
 
             validation_cls = ResponseCorrectionSchema

@@ -1,0 +1,2 @@
+Show me 3 examples of how to use the {{lang}} {{word_phrase}} "{{word}}"{% if meaning %} ({{meaning}}){% endif %} with translation in english.
+If the word is a verb, show its conjugations in present tense for all subjects.

@@ -1,0 +1,6 @@
+Оценка перевода: {{score}}
+
+Объяснение оценки: {{justification}}
+{% if explanation %}
+Объяснение ошибок: {{explanation}}
+{% endif %}

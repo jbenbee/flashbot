@@ -1,0 +1,11 @@
+Учим слово "{{word}}" (количество повторений: {{num_reps}}):
+
+Примеры использования:
+{% for entry in examples %}
+- {{entry[0]}} ({{entry[1]}})
+{% endfor %}
+
+{% if conjugations %}
+Склонения в настоящем времени:
+{{conjugations}}
+{% endif %}

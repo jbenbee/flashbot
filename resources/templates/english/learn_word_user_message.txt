@@ -1,0 +1,11 @@
+Learning word "{{word}}" (# of repetitions: {{num_reps}}):
+
+Example usage:
+{% for entry in examples %}
+- {{entry[0]}} ({{entry[1]}})
+{% endfor %}
+
+{% if conjugations %}
+Conjugations in present tense:
+{{conjugations}}
+{% endif %}

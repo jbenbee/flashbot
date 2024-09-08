@@ -75,7 +75,7 @@ def get_assistant_response(query, tokens, model_base, model_substitute, uilang, 
         raise ValueError('The model refused to respond')
 
     if validation_cls is not None:
-        validated_resp = validation_cls.parse_raw(response.choices[0].message.content)
+        validated_resp = validation_cls.model_validate_json(response.choices[0].message.content)
     else:
         validated_resp = response.choices[0].message.content
 
@@ -266,9 +266,8 @@ def handle_commands(chat_id, lang, command):
             known_words = get_known_words(chat_id, lang)
             known_words_str = "\n".join(known_words)
 
-            environment = jinja2.Environment()
             message_template = templates[uilang]['known_words_info_message']
-            template = environment.from_string(message_template)
+            template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             mes = template.render(n_known_words=len(known_words), list_known_words=known_words_str)
             tel_send_message(chat_id, mes)
 
@@ -277,9 +276,8 @@ def handle_commands(chat_id, lang, command):
             cur_deck_name = decks_db.get_deck_name(cur_deck_id)
             deck_info = get_deck_info(chat_id, lang, cur_deck_id)
 
-            environment = jinja2.Environment()
             message_template = templates[uilang]['current_deck_info_message']
-            template = environment.from_string(message_template)
+            template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             mes = template.render(cur_deck_name=cur_deck_name, deck_info=deck_info)
             tel_send_message(chat_id, mes)
 
@@ -308,17 +306,15 @@ def handle_exercise_button_press(chat_id, lang, udata, exercise):
                 words_progress_db.ignore_word(chat_id, exercise.word_id)
                 words_progress_db.save_progress()
 
-                environment = jinja2.Environment()
                 message_template = templates[uilang]['word_ignore_message']
-                template = environment.from_string(message_template)
+                template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
                 mes = template.render(word=exercise.word)
                 tel_send_message(chat_id, mes)
 
             elif f'Hint_{exercise.uid}' == udata:
 
-                environment = jinja2.Environment()
                 message_template = templates[uilang]['hint_message']
-                template = environment.from_string(message_template)
+                template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
                 mes = template.render(word=exercise.word)
                 tel_send_message(chat_id, mes)
 
@@ -328,9 +324,8 @@ def handle_exercise_button_press(chat_id, lang, udata, exercise):
                 words_progress_db.add_known_word(chat_id, exercise.word_id)
                 words_progress_db.save_progress()
 
-                environment = jinja2.Environment()
                 message_template = templates[uilang]['know_word_message']
-                template = environment.from_string(message_template)
+                template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
                 mes = template.render(word=exercise.word)
                 tel_send_message(chat_id, mes)
 
@@ -339,7 +334,7 @@ def handle_exercise_button_press(chat_id, lang, udata, exercise):
                 if n_known_words % 5 == 0:
 
                     message_template = templates[uilang]['congrats_learn_message']
-                    template = environment.from_string(message_template)
+                    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
                     mes = template.render(n_known_words=n_known_words)
                     tel_send_message(chat_id, mes)
 
@@ -371,9 +366,8 @@ def execute_command_button(chat_id, lang, command, button_data):
         user_config.set_deck(str(chat_id), cur_deck_id)
         deck_info = get_deck_info(chat_id, lang, cur_deck_id)
 
-        environment = jinja2.Environment()
         message_template = templates[uilang]['sel_deck_message']
-        template = environment.from_string(message_template)
+        template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         user_msg = template.render(cur_deck_name=cur_deck_name, deck_info=deck_info)
 
     else:
@@ -394,9 +388,8 @@ def execute_command_message(chat_id, lang, command, msg):
         decks_db.save_decks_db()
         cur_deck = decks_db.get_deck_name(cur_deck_id)
 
-        environment = jinja2.Environment()
         message_template = templates[uilang]['add_word_message']
-        template = environment.from_string(message_template)
+        template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         user_msg = template.render(word=word, cur_deck=cur_deck)
 
     elif command == '/sel_deck':
@@ -405,9 +398,8 @@ def execute_command_message(chat_id, lang, command, msg):
         user_config.set_deck(str(chat_id), deck_id)
         decks_db.save_decks_db()
 
-        environment = jinja2.Environment()
         message_template = templates[uilang]['create_deck_message']
-        template = environment.from_string(message_template)
+        template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         user_msg = template.render(msg=msg)
 
     else:

@@ -1,0 +1,3 @@
+Number of known words: {{n_known_words}}
+List of known words:
+{{list_known_words}}

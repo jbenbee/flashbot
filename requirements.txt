@@ -9,3 +9,4 @@ argparse
 waitress
 evaluate
 rouge_score
+Jinja2

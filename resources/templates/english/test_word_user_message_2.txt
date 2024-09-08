@@ -1,0 +1,6 @@
+Translation score: {{score}}
+
+Score justification: {{justification}}
+{% if explanation %}
+Explanation of mistakes: {{explanation}}
+{% endif %}
