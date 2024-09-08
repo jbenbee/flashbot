@@ -1,1 +1,3 @@
-Show me 3 examples of using the {{lang}} word or phrase "{{word}}" at level of proficiency "{{level}}". Start examples with a verb, noun, name, adverb or pronoun.
+Show me 3 examples of using the {{lang}} word or phrase "{{word}}" at level of proficiency "{{level}}".
+Start examples with a verb, noun, name, adverb or pronoun.
+The word "important" must not appear under any circumstances.
