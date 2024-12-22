@@ -18,14 +18,14 @@ class ExampleSentenceSchema(BaseModel):
 
 
 class WordTestSchema(BaseModel):
-    examples: List[ExampleSentenceSchema]
+    example_list: list[ExampleSentenceSchema]
 
     class Config:
         extra = 'forbid'
 
 
 class WordExamplesSchema(BaseModel):
-    examples: List[ExampleSentenceSchema]
+    example_list: list[ExampleSentenceSchema]
     conjugations: Optional[str]
 
     class Config:
@@ -60,7 +60,7 @@ class WordsExerciseLearn(Exercise):
     def get_next_message_to_user(self, query, assistant_response):
 
         message_template = self.templates[self.uilang]['learn_word_user_message']
-        examples = [(entry.example_sentence, entry.sentence_translation) for entry in assistant_response.examples]
+        examples = [(entry.example_sentence, entry.sentence_translation) for entry in assistant_response.example_list]
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         message = template.render(word=self.word, num_reps=self.num_reps, examples=examples, conjugations=assistant_response.conjugations)
 
@@ -122,7 +122,7 @@ class WordsExerciseTest(Exercise):
         # parse the response
         if self.is_first_message_to_user:
 
-            examples = assistant_response.examples
+            examples = assistant_response.example_list
 
             # choose randomly an example
             ridx = random.randint(0, len(examples) - 1)

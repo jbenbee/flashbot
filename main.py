@@ -10,6 +10,7 @@ from pathlib import Path
 from signal import signal, SIGINT
 import re
 
+import aiohttp
 import jinja2
 import joblib
 import numpy as np
@@ -23,11 +24,13 @@ import argparse
 import openai
 import urllib.parse
 
+from telegram import Bot, Update
+from telegram.ext import Application, MessageHandler, filters, CommandHandler, CallbackQueryHandler, ContextTypes
+
 from decks_db import DecksDB
 from learning_plan import LearningPlan
 from words_progress_db import WordsProgressDB
 from reading_db import ReadingDB
-from reading_exercise import ReadingExercise
 from user_config import UserConfig
 from words_db import WordsDB
 from words_exercise import WordsExerciseLearn, WordsExerciseTest
@@ -37,9 +40,10 @@ from running_exercises import RunningExercises
 
 app = Flask(__name__)
 
-# make all prompts in english
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-def get_assistant_response(query, tokens, model_base, model_substitute, uilang, response_format=None, validation_cls=None):
+
+async def get_assistant_response(query, tokens, model_base, model_substitute, uilang, response_format=None, validation_cls=None):
     """
     model_base is tried first and if the request fails a few times, model_substitute is used instead
     """
@@ -61,7 +65,8 @@ def get_assistant_response(query, tokens, model_base, model_substitute, uilang, 
                 response_format=response_format
             )
             break
-        except openai.OpenAIError:
+        except openai.OpenAIError as e:
+            print(e)
             time.sleep(nattempts)
         if nattempts == max_attempts - 1:
             model = model_substitute
@@ -92,44 +97,49 @@ def get_audio(query, file_path):
       voice="alloy",
       input=query
     )
-    response.stream_to_file(file_path)
+    response.write_to_file(file_path)
 
 
-def handle_new_exercise(chat_id, exercise):
-    uilang = user_config.get_user_ui_lang(chat_id)
-
-    tokens = user_config.get_user_data(chat_id)['max_tokens']
-
-    running_exercises.add_exercise(chat_id, exercise)
-    if isinstance(exercise, WordsExerciseLearn):
-        increment_word_reps(chat_id, exercise.word_id)
-        words_progress_db.save_progress()
-    next_query, response_format, validation_cls, is_last_query = exercise.get_next_assistant_query(user_response=None)
-    lang = user_config.get_user_data(chat_id)['language']
-    model = assistant_model_cheap if (lang not in ['uzbek']) else assistant_model_good
+async def handle_new_exercise(update, chat_id, exercise):
     try:
-        assistant_response = get_assistant_response(next_query, tokens, model_base=model,
-                                                    model_substitute=assistant_model_good, uilang=uilang,
-                                                    response_format=response_format, validation_cls=validation_cls)
-        message = exercise.get_next_message_to_user(next_query, assistant_response)
-        buttons = None
+        tokens = user_config.get_user_data(chat_id)['max_tokens']
+
+        running_exercises.add_exercise(chat_id, exercise)
         if isinstance(exercise, WordsExerciseLearn):
-            buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
-        if isinstance(exercise, WordsExerciseTest):
-            buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
+            increment_word_reps(chat_id, exercise.word_id)
+            words_progress_db.save_progress()
+        next_query, response_format, validation_cls, is_last_query = exercise.get_next_assistant_query(user_response=None)
+        lang = user_config.get_user_data(chat_id)['language']
+        model = assistant_model_cheap if (lang not in ['uzbek']) else assistant_model_good
+        try:
+            assistant_response = await get_assistant_response(next_query, tokens, model_base=model,
+                                                        model_substitute=assistant_model_good, uilang=uilang,
+                                                        response_format=response_format, validation_cls=validation_cls)
+            message = exercise.get_next_message_to_user(next_query, assistant_response)
+            buttons = None
+            if isinstance(exercise, WordsExerciseLearn):
+                buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
+            if isinstance(exercise, WordsExerciseTest):
+                buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
+        except Exception as e:
+            message = f'Error: {e}'  # TODO: add a language specific template
+            buttons = None
+
+        await tel_send_message(chat_id, message, buttons=buttons)
     except Exception as e:
-        message = f'Error: {e}'
-        buttons = None
+        if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
+        if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
+        release_all_locks()
+        print(e)
+        await tel_send_message(chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
-    tel_send_message(chat_id, message, buttons=buttons)
 
-
-def get_new_word_exercise(chat_id, lang, exercise_data):
+async def get_new_word_exercise(chat_id, lang, exercise_data):
     exercise = lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
-    uilang = user_config.get_user_ui_lang(chat_id)
+    # uilang = user_config.get_user_ui_lang(chat_id)
     if exercise is None and exercise_data == 'test':
         # there are no words to test
-        tel_send_message(chat_id, interface['All words in the deck are already learned, repeating already learned words'][uilang])
+        # await tel_send_message(chat_id, interface['All words in the deck are already learned, repeating already learned words'][uilang])
         print(f'There are no exercises of type "words" for data {exercise_data}.')
         exercise = lp.get_next_words_exercise(chat_id, lang, mode='repeat_test')
     elif exercise is None and exercise_data == 'learn':
@@ -138,20 +148,20 @@ def get_new_word_exercise(chat_id, lang, exercise_data):
     return exercise
 
 
-def ping_user(chat_id, lang, exercise_type, exercise_data):
+async def ping_user(chat_id, lang, exercise_type, exercise_data):
     uilang = user_config.get_user_ui_lang(chat_id)
     if exercise_type == 'reading':
         exercise = lp.get_next_reading_exercise(chat_id, lang, topics=exercise_data)
     elif exercise_type == 'words':
-        exercise = get_new_word_exercise(chat_id, lang, exercise_data)
+        exercise = await get_new_word_exercise(chat_id, lang, exercise_data)
     else:
         raise ValueError(f'Unknown exercise type {exercise_type}')
 
     if exercise is None:
-        tel_send_message(chat_id, interface['Could not create an exercise, will try again later'][uilang])
+        await tel_send_message(chat_id, interface['Could not create an exercise, will try again later'][uilang])
         print(f'Could not create an exercise {exercise_type} for data {exercise_data}.')
     else:
-        handle_new_exercise(chat_id, exercise)
+        await handle_new_exercise(update, chat_id, exercise)
 
 
 def parse_message(message):
@@ -175,9 +185,7 @@ def parse_message(message):
     return chat_id, type, data
 
 
-def tel_send_audio(chat_id, audio_file_path):
-    uilang = user_config.get_user_ui_lang(chat_id)
-    bot_token = bot_tokens[uilang]
+async def tel_send_audio(chat_id, audio_file_path):
 
     with open(audio_file_path, 'rb') as audio_file:
         payload = {
@@ -188,26 +196,21 @@ def tel_send_audio(chat_id, audio_file_path):
         files = {
             'audio': audio_file.read(),
         }
+
         resp = requests.post(
-            f"https://api.telegram.org/bot{bot_token}/sendAudio",
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendAudio",
             data=payload,
-            files=files).json()
+            files=files)
+        resp.json()
 
 
-def tel_send_message(chat_id, text, buttons=None):
-    uilang = user_config.get_user_ui_lang(chat_id)
-    bot_token = bot_tokens[uilang]
-
-    url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
-    payload = {
-        'chat_id': chat_id,
-        'text': text
-    }
+async def tel_send_message(chat_id, text, buttons=None):
 
     # determine max line length to know if to display buttons on separate lines or on the same one
     lines = text.split('\n')
     max_len = max([len(line) for line in lines])
     uilang = user_config.get_user_ui_lang(chat_id)
+    reply_markup = None
     if buttons is not None:
         buttons_list = []
         for button_id, button_text in buttons:
@@ -219,147 +222,187 @@ def tel_send_message(chat_id, text, buttons=None):
             )
 
         buttons_to_send = [[button] for button in buttons_list] if max_len < 74 else [buttons_list]
-        payload['reply_markup'] = {
+        reply_markup = {
             "inline_keyboard": buttons_to_send
         }
-    bot_port = bot_ports_lang[uilang]
-    r = requests.post(f'{url}', json=payload)
-    return r
+
+    await application.bot.send_message(chat_id, text, reply_markup=reply_markup)
 
 
-def handle_commands(chat_id, lang, command):
-        # user pressed a command
-        print(f'Received a command: {command}')
-        uilang = user_config.get_user_ui_lang(chat_id)
-        if command == '/next_test':
-            tel_send_message(chat_id, f'{interface["Thinking"][uilang]}...')
-            exercise = get_new_word_exercise(chat_id, lang, 'test')
-            if exercise is None:
-                tel_send_message(chat_id, interface['Could not create an exercise, please try again later'][uilang])
-                print(f'Could not create an exercise "words" for data "test".')
-            else:
-                handle_new_exercise(chat_id, exercise)
-        elif command == '/next_new':
-            tel_send_message(chat_id, f'{interface["Thinking"][uilang]}...')
-            exercise = get_new_word_exercise(chat_id, lang, 'learn')
-            if exercise is None:
-                tel_send_message(chat_id, interface['Could not create an exercise, please try again later'][uilang])
-                print(f'Could not create an exercise "words" for data "learn".')
-            else:
-                handle_new_exercise(chat_id, exercise)
-        elif command == '/next_reading':
-            tel_send_message(chat_id, f'{interface["Thinking"][uilang]}...')
-            exercise = lp.get_next_reading_exercise(chat_id, lang)
-            if exercise is None:
-                tel_send_message(chat_id, interface['Sorry, there are no reading topics for you'][uilang])
-            else:
-                handle_new_exercise(chat_id, exercise)
-        elif command == '/add_word':
-            cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
-            if decks_db.is_deck_owner(str(chat_id), cur_deck_id):
-                running_commands.add_command(chat_id, command)
-                tel_send_message(chat_id, interface['Type the word that you would like to add'][uilang])
-            else:
-                tel_send_message(chat_id, interface['You can only add words to the decks that you created'][uilang])
-        elif command == '/known_words':
-            tel_send_message(chat_id, f'Thinking...')
-            known_words = get_known_words(chat_id, lang)
-            known_words_str = "\n".join(known_words)
+async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    command = update.message.text[1:]
+    chat_id = update.message.chat_id
+    
+    if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
+    if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
 
-            message_template = templates[uilang]['known_words_info_message']
-            template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-            mes = template.render(n_known_words=len(known_words), list_known_words=known_words_str)
-            tel_send_message(chat_id, mes)
-
-        elif command == '/cur_deck_info':
-            cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
-            cur_deck_name = decks_db.get_deck_name(cur_deck_id)
-            deck_info = get_deck_info(chat_id, lang, cur_deck_id)
-
-            message_template = templates[uilang]['current_deck_info_message']
-            template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-            mes = template.render(cur_deck_name=cur_deck_name, deck_info=deck_info)
-            tel_send_message(chat_id, mes)
-
-        elif command == '/sel_deck':
-            running_commands.add_command(chat_id, command)
-            decks = decks_db.get_decks_lang(str(chat_id), lang)
-            if len(decks) > 0:
-                buttons = [(deck['id'], deck['name']) for deck in decks]
-                tel_send_message(chat_id, f'{interface["Create a new deck by typing its name or select an existing deck"][uilang]}:', buttons=buttons)
-            else:
-                tel_send_message(chat_id, interface['Create a new deck by typing its name'][uilang])
-        else:
-            raise ValueError(f'Unknown command {command}')
+    try:
+        if command == 'add_word':
+            await handle_add_word(update, context)
+        elif command == 'cur_deck_info':
+            await handle_cur_deck_info(update, context)
+        elif command == 'sel_deck':
+            await handle_sel_deck(update, context)
+        elif command == 'next_new':
+            await handle_next_new(update, context)
+        elif command == 'next_test':
+            await handle_next_test(update, context)
+        elif command == 'known_words':
+            await handle_known_words(update, context)
+    except Exception as e:
+        if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
+        if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
+        release_all_locks()
+        print(e)
+        await tel_send_message(chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
 
-def handle_exercise_button_press(chat_id, lang, udata, exercise):
-    print(f'Received a button: {udata}')
-    uilang = user_config.get_user_ui_lang(chat_id)
-    button_id = udata.split('_')[-1]
-    if button_id != exercise.uid:
-        tel_send_message(chat_id, interface['Sorry, the exercise has been completed or is expired'][uilang])
-        print(f'Button id {button_id} does not match exercise id {exercise.uid}')
+async def handle_add_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.message.chat_id
+    cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
+    if decks_db.is_deck_owner(str(chat_id), cur_deck_id):
+        running_commands.add_command(chat_id, 'add_word')
+        await tel_send_message(chat_id, interface['Type the word that you would like to add'][uilang])
     else:
-        if isinstance(exercise, WordsExerciseLearn) or isinstance(exercise, WordsExerciseTest):
-            if f'Ignore this word_{exercise.uid}' == udata:
-                words_progress_db.ignore_word(chat_id, exercise.word_id)
-                words_progress_db.save_progress()
+        await tel_send_message(chat_id, interface['You can only add words to the decks that you created'][uilang])
 
-                message_template = templates[uilang]['word_ignore_message']
-                template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-                mes = template.render(word=exercise.word)
-                tel_send_message(chat_id, mes)
 
-            elif f'Hint_{exercise.uid}' == udata:
+async def handle_cur_deck_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.message.chat_id
+    lang = user_config.get_user_data(chat_id)['language']
+    cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
+    cur_deck_name = decks_db.get_deck_name(cur_deck_id)
+    deck_info = get_deck_info(chat_id, lang, cur_deck_id)
 
-                message_template = templates[uilang]['hint_message']
-                template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-                mes = template.render(word=exercise.word)
-                tel_send_message(chat_id, mes)
+    message_template = templates[uilang]['current_deck_info_message']
+    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+    mes = template.render(cur_deck_name=cur_deck_name, deck_info=deck_info)
+    await tel_send_message(chat_id, mes)
 
-            elif f'Correct answer_{exercise.uid}' == udata:
-                tel_send_message(chat_id, exercise.correct_answer())
-            elif f'I know this word_{exercise.uid}' == udata:
-                words_progress_db.add_known_word(chat_id, exercise.word_id)
-                words_progress_db.save_progress()
 
-                message_template = templates[uilang]['know_word_message']
-                template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-                mes = template.render(word=exercise.word)
-                tel_send_message(chat_id, mes)
+async def handle_sel_deck(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    lang = user_config.get_user_data(chat_id)['language']
+    running_commands.add_command(chat_id, 'sel_deck')
+    decks = decks_db.get_decks_lang(str(chat_id), lang)
+    if len(decks) > 0:
+        buttons = [(deck['id'], deck['name']) for deck in decks]
+        await tel_send_message(chat_id, f'{interface["Create a new deck by typing its name or select an existing deck"][uilang]}:', buttons=buttons)
+    else:
+        await tel_send_message(chat_id, interface['Create a new deck by typing its name'][uilang])
 
-                known_words = get_known_words(chat_id, lang)
-                n_known_words = len(known_words)
-                if n_known_words % 5 == 0:
 
-                    message_template = templates[uilang]['congrats_learn_message']
-                    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-                    mes = template.render(n_known_words=n_known_words)
-                    tel_send_message(chat_id, mes)
+async def handle_next_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    lang = user_config.get_user_data(chat_id)['language']
+    await tel_send_message(chat_id, f'{interface["Thinking"][uilang]}...')
+    exercise = await get_new_word_exercise(chat_id, lang, 'test')
+    if exercise is None:
+        await tel_send_message(chat_id, interface['Could not create an exercise, please try again later'][uilang])
+        print(f'Could not create an exercise "words" for data "test".')
+    else:
+        await handle_new_exercise(update, chat_id, exercise)
 
-            elif f'Answer audio_{exercise.uid}' == udata:
-                file_path = f'{chat_id}_{exercise.uid}.mp3'
-                get_audio(exercise.correct_answer(), file_path)
-                tel_send_audio(chat_id, file_path)
-                os.remove(file_path)
-            elif f'Next_{exercise.uid}' == udata:
-                tel_send_message(chat_id, f'{interface["Thinking"][uilang]}...')
-                exercise = get_new_word_exercise(chat_id, lang, 'learn')
-                if exercise is None:
-                    tel_send_message(chat_id, interface['Could not create an exercise, please try again later'][uilang])
-                    print(f'Could not create an exercise "words" for data "learn".')
-                else:
-                    handle_new_exercise(chat_id, exercise)
-            else:
-                raise ValueError(f'Unknown callback data {udata}')
+
+async def handle_next_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    lang = user_config.get_user_data(chat_id)['language']
+    await tel_send_message(chat_id, f'{interface["Thinking"][uilang]}...')
+    exercise = await get_new_word_exercise(chat_id, lang, 'learn')
+    if exercise is None:
+        await tel_send_message(chat_id, interface['Could not create an exercise, please try again later'][uilang])
+        print(f'Could not create an exercise "words" for data "learn".')
+    else:
+        await handle_new_exercise(update, chat_id, exercise)
+
+
+async def handle_known_words(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    lang = user_config.get_user_data(chat_id)['language']
+    await tel_send_message(chat_id, f'Thinking...')
+    known_words = get_known_words(chat_id, lang)
+    known_words_str = "\n".join(known_words)
+
+    message_template = templates[uilang]['known_words_info_message']
+    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+    mes = template.render(n_known_words=len(known_words), list_known_words=known_words_str)
+    await tel_send_message(chat_id, mes)
+
+
+async def handle_exercise_button_press(update, chat_id, lang, udata, exercise):
+    try:
+        print(f'Received a button: {udata}')
+        uilang = user_config.get_user_ui_lang(chat_id)
+        button_id = udata.split('_')[-1]
+        if button_id != exercise.uid:
+            await tel_send_message(chat_id, interface['Sorry, the exercise has been completed or is expired'][uilang])
+            print(f'Button id {button_id} does not match exercise id {exercise.uid}')
         else:
-            raise ValueError(f'Unknown exercise type: {type(exercise)}.')
+            if isinstance(exercise, WordsExerciseLearn) or isinstance(exercise, WordsExerciseTest):
+                if f'Ignore this word_{exercise.uid}' == udata:
+                    words_progress_db.ignore_word(chat_id, exercise.word_id)
+                    words_progress_db.save_progress()
+
+                    message_template = templates[uilang]['word_ignore_message']
+                    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+                    mes = template.render(word=exercise.word)
+                    await tel_send_message(chat_id, mes)
+
+                elif f'Hint_{exercise.uid}' == udata:
+
+                    message_template = templates[uilang]['hint_message']
+                    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+                    mes = template.render(word=exercise.word)
+                    await tel_send_message(chat_id, mes)
+
+                elif f'Correct answer_{exercise.uid}' == udata:
+                    await tel_send_message(chat_id, exercise.correct_answer())
+                elif f'I know this word_{exercise.uid}' == udata:
+                    words_progress_db.add_known_word(chat_id, exercise.word_id)
+                    words_progress_db.save_progress()
+
+                    message_template = templates[uilang]['know_word_message']
+                    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+                    mes = template.render(word=exercise.word)
+                    await tel_send_message(chat_id, mes)
+
+                    known_words = get_known_words(chat_id, lang)
+                    n_known_words = len(known_words)
+                    if n_known_words % 5 == 0:
+
+                        message_template = templates[uilang]['congrats_learn_message']
+                        template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+                        mes = template.render(n_known_words=n_known_words)
+                        await tel_send_message(chat_id, mes)
+
+                elif f'Answer audio_{exercise.uid}' == udata:
+                    file_path = f'{chat_id}_{exercise.uid}.mp3'
+                    get_audio(exercise.correct_answer(), file_path)
+                    await tel_send_audio(chat_id, file_path)
+                    os.remove(file_path)
+                elif f'Next_{exercise.uid}' == udata:
+                    await tel_send_message(chat_id, f'{interface["Thinking"][uilang]}...')
+                    exercise = await get_new_word_exercise(chat_id, lang, 'learn')
+                    if exercise is None:
+                        await tel_send_message(chat_id, interface['Could not create an exercise, please try again later'][uilang])
+                        print(f'Could not create an exercise "words" for data "learn".')
+                    else:
+                        await handle_new_exercise(update, chat_id, exercise)
+                else:
+                    raise ValueError(f'Unknown callback data {udata}')
+            else:
+                raise ValueError(f'Unknown exercise type: {type(exercise)}.')
+    except Exception as e:
+        if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
+        if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
+        release_all_locks()
+        print(e)
+        await tel_send_message(chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
 
 def execute_command_button(chat_id, lang, command, button_data):
     uilang = user_config.get_user_ui_lang(chat_id)
-    if command == '/sel_deck':
+    if command == 'sel_deck':
         # choose an existing deck
         cur_deck_name, cur_deck_id = button_data.split('_')
         cur_deck_id = int(cur_deck_id)
@@ -376,9 +419,7 @@ def execute_command_button(chat_id, lang, command, button_data):
 
 
 def execute_command_message(chat_id, lang, command, msg):
-    uilang = user_config.get_user_ui_lang(chat_id)
-    if command == '/add_word':
-        # word = msg.strip()
+    if command == 'add_word':
         words = msg.strip().split('\n')
         cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
         for word in words:
@@ -392,7 +433,7 @@ def execute_command_message(chat_id, lang, command, msg):
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         user_msg = template.render(word=word, cur_deck=cur_deck)
 
-    elif command == '/sel_deck':
+    elif command == 'sel_deck':
         # create a new deck
         deck_id = decks_db.create_deck(str(chat_id), msg, lang)
         user_config.set_deck(str(chat_id), deck_id)
@@ -407,125 +448,107 @@ def execute_command_message(chat_id, lang, command, msg):
     return user_msg
 
 
-def handle_user_message(chat_id, lang, tokens, msg):
-    uilang = user_config.get_user_ui_lang(chat_id)
-    # if chat_id in running_commands.keys():
-    if chat_id in running_commands.chat_ids:
-        # handle an input for a command
-        command = running_commands.pop_command(chat_id)
-        user_msg = execute_command_message(chat_id, lang, command, msg)
-        tel_send_message(chat_id, user_msg)
-    # elif chat_id in running_exercises.keys():
-    #     exercise = running_exercises.pop(chat_id)
-    elif chat_id in running_exercises.chat_ids:
-        #exercise = running_exercises.pop_exercise(chat_id)
-        exercise = running_exercises.current_exercise(chat_id)
+async def handle_inline_request(update, context):
+    try:
+        chat_id = update.callback_query.from_user.id
+        lang = user_config.get_user_data(chat_id)['language']
 
-        tel_send_message(chat_id, 'Thinking...')
-        next_query, response_format, validation_cls, is_last_query = exercise.get_next_assistant_query(user_response=msg)
-        assistant_response = get_assistant_response(next_query, tokens, model_base=assistant_model_cheap,
-                                                    model_substitute=assistant_model_good,
-                                                    uilang=uilang, response_format=response_format, validation_cls=validation_cls)
-        buttons = None
-        if isinstance(exercise, WordsExerciseLearn):
-            buttons = [(exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
-        n_prev_known_words = None
-        if isinstance(exercise, WordsExerciseTest):
-            n_prev_known_words = len(get_known_words(chat_id, lang))
-            increment_word_reps(chat_id, exercise.word_id)
+        data = update.callback_query.data
+        button_text = data.split('_')[0]
+        
+        if button_text in exercise_buttons:
+            # user pressed a button for an exercise
+            if chat_id in running_commands.chat_ids:
+                # if there were any running commands, remove them when the user interacts with an exercise
+                running_commands.pop_command(chat_id)
+            if chat_id in running_exercises.chat_ids:
+                exercise = running_exercises.current_exercise(chat_id)
+                await handle_exercise_button_press(update, chat_id, lang, data, exercise)
+            else:
+                await tel_send_message(chat_id, interface['Sorry, the exercise has been completed or is expired'][uilang])
+        elif chat_id in running_commands.chat_ids:
+            # user pressed a button needed to complete a command
+            command = running_commands.pop_command(chat_id)
+            user_msg = execute_command_button(chat_id, lang, command, data)
+            await tel_send_message(chat_id, user_msg)
+        else:
+            await tel_send_message(chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
+            print(f'Unexpected inline request: {data}')
 
-        tel_send_message(chat_id, exercise.get_next_message_to_user(next_query, assistant_response), buttons=buttons)
-        words_progress_db.save_progress()
+    except Exception as e:
+        if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
+        if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
+        release_all_locks()
+        print(e)
+        await tel_send_message(chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
-        known_words = get_known_words(chat_id, lang)
-        n_known_words = len(known_words)
-        if n_known_words % 5 == 0 and n_prev_known_words is not None and n_known_words != n_prev_known_words:
-            tel_send_message(chat_id, f'Congrats, you already learned {n_known_words} words!')
-    else:
-        tel_send_message(chat_id, f'{interface["No exercises or commands are running, this message will be ignored"][uilang]}: {msg}')
-        print(f'No running commands or exercises, ignore user message: {msg}')
+
+async def handle_request(update, context):
+    try:
+        chat_id = update.message.chat_id
+
+        msg = update.message.text
+        print(f'{chat_id} message: {msg}')
+
+        lang = user_config.get_user_data(chat_id)['language']
+        tokens = user_config.get_user_data(chat_id)['max_tokens']
+        
+        if chat_id in running_commands.chat_ids:
+            # handle an input for a command
+            command = running_commands.pop_command(chat_id)
+            if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise()
+
+            user_msg = execute_command_message(chat_id, lang, command, msg)
+            await tel_send_message(chat_id, user_msg)
+        elif chat_id in running_exercises.chat_ids:
+            # user responded to an exercise
+            exercise = running_exercises.current_exercise(chat_id)
+
+            if isinstance(exercise, WordsExerciseTest):
+
+                if chat_id in running_commands.chat_ids: running_commands.pop_command()
+
+                await tel_send_message(chat_id, 'Thinking...')
+                next_query, response_format, validation_cls, is_last_query = exercise.get_next_assistant_query(user_response=msg)
+                assistant_response = await get_assistant_response(next_query, tokens, model_base=assistant_model_cheap,
+                                                            model_substitute=assistant_model_good,
+                                                            uilang=uilang, response_format=response_format, validation_cls=validation_cls)
+                buttons = None
+                if isinstance(exercise, WordsExerciseLearn):
+                    buttons = [(exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
+                n_prev_known_words = None
+                if isinstance(exercise, WordsExerciseTest):
+                    n_prev_known_words = len(get_known_words(chat_id, lang))
+                    increment_word_reps(chat_id, exercise.word_id)
+
+                next_msg = exercise.get_next_message_to_user(next_query, assistant_response)
+                await tel_send_message(chat_id, next_msg, buttons=buttons)
+                words_progress_db.save_progress()
+
+                known_words = get_known_words(chat_id, lang)
+                n_known_words = len(known_words)
+                if n_known_words % 5 == 0 and n_prev_known_words is not None and n_known_words != n_prev_known_words:
+                    await tel_send_message(chat_id, f'Congrats, you already learned {n_known_words} words!')
+            else:
+                await tel_send_message(chat_id, f'{interface["No test exercises are running, this message will be ignored"][uilang]}: {msg}')
+                print(f'No test exercises are running, this message will be ignored: {msg}')
+
+        else:
+            await tel_send_message(chat_id, f'{interface["No exercises or commands are running, this message will be ignored"][uilang]}: {msg}')
+            print(f'No running commands or exercises, ignore user message: {msg}')
+
+    except Exception as e:
+        if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
+        if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
+        release_all_locks()
+        print(e)
+        await tel_send_message(chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
+    return
 
 
 def release_all_locks():
     for shared_obj in shared_objs:
         shared_obj.release_lock()
-
-
-def handle_request(msg):
-    chat_id, type, data = parse_message(msg)
-    print(f'{chat_id} message: {data}')
-
-    lang = user_config.get_user_data(chat_id)['language']
-    tokens = user_config.get_user_data(chat_id)['max_tokens']
-    uilang = user_config.get_user_ui_lang(chat_id)
-    # lock.acquire()
-    try:
-        if type == 'command':
-            # if chat_id in running_exercises.keys():
-            if chat_id in running_exercises.chat_ids:
-                # if there were any running exercises, remove them after a command has been pressed
-                # running_exercises.pop(chat_id)
-                running_exercises.pop_exercise(chat_id)
-            handle_commands(chat_id, lang, data)
-        elif type == 'button':
-            button_text = data.split('_')[0]
-            if button_text in exercise_buttons:
-                # user pressed a button for an exercise
-                # if chat_id in running_commands.keys():
-                if chat_id in running_commands.chat_ids:
-                    # if there were any running commands, remove them when the user interacts with an exercise
-                    running_commands.pop_command(chat_id)
-                if chat_id in running_exercises.chat_ids:
-                    exercise = running_exercises.current_exercise(chat_id)
-                    handle_exercise_button_press(chat_id, lang, data, exercise)
-                else:
-                    tel_send_message(chat_id, interface['Sorry, the exercise has been completed or is expired'][uilang])
-            else:
-                # user pressed a button required to complete a command
-                # if chat_id in running_commands.keys():
-                #     command = running_commands.pop(chat_id)
-                if chat_id in running_commands.chat_ids:
-                    command = running_commands.pop_command(chat_id)
-                    user_msg = execute_command_button(chat_id, lang, command, data)
-                    tel_send_message(chat_id, user_msg)
-                else:
-                    tel_send_message(chat_id, interface['The command has already been processed'][uilang])
-                    # raise Exception(f'The user pressed a button for a command, '
-                    #                 f'but there are no running commands for user {chat_id}.')
-        elif type == 'message':
-            handle_user_message(chat_id, lang, tokens, data)
-        else:
-            raise ValueError(f'Unknown message type {type}, {data}')
-    except Exception as e:
-        # if chat_id in running_commands.keys(): running_commands.pop(chat_id)
-        # if chat_id in running_exercises.keys(): running_exercises.pop(chat_id)
-        if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
-        if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
-        release_all_locks()
-        print(e)
-        tel_send_message(chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
-        # raise e  # TODO
-    # lock.release()
-
-
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        headers = {k: v for k, v in request.headers.items()}
-        if 'X-Telegram-Bot-Api-Secret-Token' not in headers:
-            print('No secret token.')
-            return 'Error'
-        elif headers['X-Telegram-Bot-Api-Secret-Token'] != secret_token:
-            print('Secret token does not match')
-            return 'Error'
-
-        msg = request.get_json()
-
-        x = threading.Thread(target=lambda: handle_request(msg), daemon=True)
-        x.start()
-        return 'ok'
-    else:
-        return "<h1>Welcome!</h1>"
 
 
 def exithandler(signal_received, frame, proc):
@@ -539,10 +562,6 @@ def exithandler(signal_received, frame, proc):
         proc.kill()
     exit(0)
 
-
-def handle_webhook(local, url):
-    x = threading.Thread(target=lambda: webhook_func(local, url), daemon=True)
-    x.start()
 
 
 def start_job_queue(user_data, exercise_type):
@@ -602,54 +621,6 @@ def handle_job_queue(user_db):
     x.start()
 
 
-def webhook_func(local, url):
-    global hookproc
-    global secret_token
-    sleep_time = 110 * 60 if local else 24 * 60 * 60
-    while True:
-        secret_token = str(uuid.uuid1())
-        for bot_token in bot_tokens.values():
-            if hookproc[bot_token] is not None:
-                page = urllib.request.urlopen(f'https://api.telegram.org/bot{bot_token}/setWebhook?remove')
-                print(f'Remove webhook status: {page.getcode()}')
-                hookproc[bot_token].kill()
-            bport = port if args.local else bot_ports_token[bot_token]
-            hookproc[bot_token] = set_webhook(bport, url, bot_token)
-        time.sleep(sleep_time)  # refresh hook url
-
-
-def set_webhook(port, url, bot_token):
-    if url is not None:
-        response = requests.post(
-            url=f'https://api.telegram.org/bot{bot_token}/setWebhook',
-            data={'url': f'{url}:{port}', 'secret_token': secret_token}
-        ).json()
-        response_str = json.dumps(response, indent='\t')
-        print(f'Setting webhook status: {response_str}')
-        proc = None
-    else:
-        proc = subprocess.Popen(['ngrok', 'http', f'{port}', '--log=stdout'], stdout=subprocess.PIPE)
-        lines_iter = iter(proc.stdout.readline, "")
-        found_url = False
-        url_regexp = [r"https://[-a-z0-9]+.eu.ngrok.io", r"https://[-a-z0-9]+.ngrok.io", r"https://[-a-z0-9]+.ngrok-free.app"]
-        while not found_url:
-            stdout_line = str(next(lines_iter))
-            url_list = [re.findall(u, stdout_line) for u in url_regexp]
-            for ulist in url_list:
-                if len(ulist) > 0:
-                    found_url = True
-                    url = ulist[0]
-                    break
-        print(f'Webhook url: {url}')
-        response = requests.post(
-            url=f'https://api.telegram.org/bot{bot_token}/setWebhook',
-            data={'url': url, 'secret_token': secret_token}
-        ).json()
-        response_str = json.dumps(response, indent='\t')
-        print(f'Setting webhook status: {response_str}')
-    return proc
-
-
 def get_known_words(chat_id, lang, word_ids=None):
     words_df = words_db.get_words_df()
     progress_df = words_progress_db.get_progress_df()
@@ -671,6 +642,7 @@ def get_deck_info(chat_id, lang, deck_id):
     n_learned_words = len(get_known_words(chat_id, lang, word_ids=deck_words))
     group_info = f'Total number of words in the deck is {len(deck_words)}.\n' \
                  f'Number of known words in the deck is {n_learned_words}.'
+    # TODO: put this into the current_deck_info_template
     return group_info
 
 
@@ -708,47 +680,27 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--local", action='store_true', help="Run locally")
     parser.add_argument("--webhook", type=str, help="Webhook for telegram")
+    parser.add_argument("--lang", type=str, help="Bot language")
     parser.add_argument("--model_cheap", type=str, default="gpt-4o-mini")
     parser.add_argument("--model_good", type=str, default="gpt-4")
 
     args = parser.parse_args()
 
-    if not args.local and args.webhook is None:
-        print('Webhook must be specified when not running locally.')
-        exit()
-
     running_commands = RunningCommands()
     running_exercises_file = 'running_exercise.jb'
     running_exercises = RunningExercises(running_exercises_file)
-
-    engbot_token = os.getenv('BOT_TOKEN')
-    if engbot_token is None:
-        with open(Path('api_keys/bot_token.txt'), 'r') as fp:
-            engbot_token = fp.read()
-    rubot_token = os.getenv('RUBOT_TOKEN')
-    if rubot_token is None:
-        with open(Path('api_keys/rubot_token.txt'), 'r') as fp:
-            rubot_token = fp.read()
-
-    # TODO: A user can only be assigned to one of the bots, not to multiple
-    bot_tokens = {
-        'english': engbot_token,
-        'russian': rubot_token
-    }
-    bot_ports_lang = {
-        'english': '443',
-        'russian': '8443'
-    }
-    bot_ports_token = {
-        engbot_token: '443',
-        rubot_token: '8443'
-    }
 
     openai_key = os.getenv('OPENAI_KEY')
     if openai_key is None:
         with open(Path('api_keys/openai_api.txt'), 'r') as fp:
                 lines = fp.readlines()
                 openai_key = lines[0].strip()
+    google_key = os.getenv('GOOGLE_KEY')
+    if google_key is None:
+        with open(Path('api_keys/google_api.txt'), 'r') as fp:
+                lines = fp.readlines()
+                google_key = lines[0].strip()
+
     client = openai.OpenAI(api_key=openai_key, timeout=20.0, max_retries=0)
 
     user_data_root = os.getenv('CH_USER_DATA_ROOT')
@@ -780,17 +732,17 @@ if __name__ == '__main__':
     # list of known exercise buttons
     exercise_buttons = ['Ignore this word', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next']
 
-    port = 5001
     assistant_model_cheap = args.model_cheap
     assistant_model_good = args.model_good
-    hookproc = {token: None for token in bot_tokens.values()}
-    secret_token = None
-    for token in bot_tokens.values():
-        signal(SIGINT, lambda s, f: exithandler(s, f, hookproc[token]))
 
-    handle_webhook(local=args.local, url=args.webhook)
-
-    handle_job_queue(user_config)
-
-    host = "0.0.0.0"
-    serve(app, host="0.0.0.0", port=port, url_scheme='https')
+    uilang = args.lang
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_request))
+    application.add_handler(CommandHandler("add_word", handle_command))
+    application.add_handler(CommandHandler("cur_deck_info", handle_command))
+    application.add_handler(CommandHandler("sel_deck", handle_command))
+    application.add_handler(CommandHandler("next_test", handle_command))
+    application.add_handler(CommandHandler("next_new", handle_command))
+    application.add_handler(CommandHandler("known_words", handle_command))
+    application.add_handler(CallbackQueryHandler(handle_inline_request))
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
