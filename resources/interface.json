@@ -102,5 +102,15 @@
   "Selected deck": {
     "russian": "Выбранный набор",
     "english": "Selected deck"
+  },
+  "No test exercises are running, this message will be ignored":
+  {
+    "russian": "Нет текущих тестовых упражнений, это сообщение будет проигнорировано",
+    "english": "No test exercises are running, this message will be ignored"
+  },
+  "Error":
+  {
+    "russian": "Ошибка",
+    "english": "Error"
   }
 }

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os.path
 import subprocess
@@ -100,7 +101,7 @@ def get_audio(query, file_path):
     response.write_to_file(file_path)
 
 
-async def handle_new_exercise(update, chat_id, exercise):
+async def handle_new_exercise(chat_id, exercise):
     try:
         tokens = user_config.get_user_data(chat_id)['max_tokens']
 
@@ -122,7 +123,7 @@ async def handle_new_exercise(update, chat_id, exercise):
             if isinstance(exercise, WordsExerciseTest):
                 buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
         except Exception as e:
-            message = f'Error: {e}'  # TODO: add a language specific template
+            message = f'{interface["Error"][uilang]}: {e}'
             buttons = None
 
         await tel_send_message(chat_id, message, buttons=buttons)
@@ -134,12 +135,10 @@ async def handle_new_exercise(update, chat_id, exercise):
         await tel_send_message(chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
 
-async def get_new_word_exercise(chat_id, lang, exercise_data):
+def get_new_word_exercise(chat_id, lang, exercise_data):
     exercise = lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
-    # uilang = user_config.get_user_ui_lang(chat_id)
     if exercise is None and exercise_data == 'test':
         # there are no words to test
-        # await tel_send_message(chat_id, interface['All words in the deck are already learned, repeating already learned words'][uilang])
         print(f'There are no exercises of type "words" for data {exercise_data}.')
         exercise = lp.get_next_words_exercise(chat_id, lang, mode='repeat_test')
     elif exercise is None and exercise_data == 'learn':
@@ -153,7 +152,7 @@ async def ping_user(chat_id, lang, exercise_type, exercise_data):
     if exercise_type == 'reading':
         exercise = lp.get_next_reading_exercise(chat_id, lang, topics=exercise_data)
     elif exercise_type == 'words':
-        exercise = await get_new_word_exercise(chat_id, lang, exercise_data)
+        exercise = get_new_word_exercise(chat_id, lang, exercise_data)
     else:
         raise ValueError(f'Unknown exercise type {exercise_type}')
 
@@ -161,28 +160,7 @@ async def ping_user(chat_id, lang, exercise_type, exercise_data):
         await tel_send_message(chat_id, interface['Could not create an exercise, will try again later'][uilang])
         print(f'Could not create an exercise {exercise_type} for data {exercise_data}.')
     else:
-        await handle_new_exercise(update, chat_id, exercise)
-
-
-def parse_message(message):
-    chat_id = None
-    data = None
-    type = None
-
-    if 'message' in message.keys() and 'entities' in message['message'].keys() \
-            and message['message']['entities'][0]['type'] == 'bot_command':
-        type = 'command'
-        chat_id = message['message']['chat']['id']
-        data = message['message']['text']
-    elif 'message' in message.keys():
-        type = 'message'
-        chat_id = message['message']['chat']['id']
-        data = message['message']['text']
-    elif 'callback_query' in message.keys():
-        type = 'button'
-        chat_id = message['callback_query']['message']['chat']['id']
-        data = message['callback_query']['data']
-    return chat_id, type, data
+        await handle_new_exercise(chat_id, exercise)
 
 
 async def tel_send_audio(chat_id, audio_file_path):
@@ -296,24 +274,24 @@ async def handle_next_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
     lang = user_config.get_user_data(chat_id)['language']
     await tel_send_message(chat_id, f'{interface["Thinking"][uilang]}...')
-    exercise = await get_new_word_exercise(chat_id, lang, 'test')
+    exercise = get_new_word_exercise(chat_id, lang, 'test')
     if exercise is None:
         await tel_send_message(chat_id, interface['Could not create an exercise, please try again later'][uilang])
         print(f'Could not create an exercise "words" for data "test".')
     else:
-        await handle_new_exercise(update, chat_id, exercise)
+        await handle_new_exercise(chat_id, exercise)
 
 
 async def handle_next_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
     lang = user_config.get_user_data(chat_id)['language']
     await tel_send_message(chat_id, f'{interface["Thinking"][uilang]}...')
-    exercise = await get_new_word_exercise(chat_id, lang, 'learn')
+    exercise = get_new_word_exercise(chat_id, lang, 'learn')
     if exercise is None:
         await tel_send_message(chat_id, interface['Could not create an exercise, please try again later'][uilang])
         print(f'Could not create an exercise "words" for data "learn".')
     else:
-        await handle_new_exercise(update, chat_id, exercise)
+        await handle_new_exercise(chat_id, exercise)
 
 
 async def handle_known_words(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -382,12 +360,12 @@ async def handle_exercise_button_press(update, chat_id, lang, udata, exercise):
                     os.remove(file_path)
                 elif f'Next_{exercise.uid}' == udata:
                     await tel_send_message(chat_id, f'{interface["Thinking"][uilang]}...')
-                    exercise = await get_new_word_exercise(chat_id, lang, 'learn')
+                    exercise = get_new_word_exercise(chat_id, lang, 'learn')
                     if exercise is None:
                         await tel_send_message(chat_id, interface['Could not create an exercise, please try again later'][uilang])
                         print(f'Could not create an exercise "words" for data "learn".')
                     else:
-                        await handle_new_exercise(update, chat_id, exercise)
+                        await handle_new_exercise(chat_id, exercise)
                 else:
                     raise ValueError(f'Unknown callback data {udata}')
             else:
@@ -563,62 +541,42 @@ def exithandler(signal_received, frame, proc):
     exit(0)
 
 
-
-def start_job_queue(user_data, exercise_type):
-    while True:
-        jobs = list()
-        is_weekend = (datetime.now().weekday() == 5 or datetime.now().weekday() == 6)
-        schedule_col = 'weekend' if is_weekend else 'weekday'
-        for chat_id, chat_data in user_data.items():
-            if chat_data['to_skip']: continue
-            user_ping_times = chat_data['ping_schedule'][schedule_col]
-            jobs += [{'chat_id': chat_id, 'lang': chat_data['language'], 'time': ping_time, 'exercise_data': exercise_data}
-                     for ping_time, exercise_data in user_ping_times.items()]
-        jobs = sorted(jobs, key=lambda v: v['time'])
-        earliest_time = jobs[0]['time']
-
-        # skip all tasks until now
-        jidx = 0
-        while jidx < len(jobs) and datetime.now().time() > jobs[jidx]['time']: jidx += 1
-
-        jobs = jobs[jidx:]
-
-        while len(jobs) > 0:
-            next_run_time = jobs[0]
-            cur_jobs = [item for item in jobs if item['time'] == next_run_time['time']]
-            jobs = jobs[len(cur_jobs):]
-
-            for j in cur_jobs:
-                print(f"{exercise_type}: {j['chat_id']}, {j['lang']}: {datetime.combine(datetime.today(), next_run_time['time'])}")
-
-            time.sleep((datetime.combine(datetime.today(), next_run_time['time'])-datetime.now()).total_seconds())
-            for job in cur_jobs:
-                ping_user(chat_id=job['chat_id'], lang=job['lang'],
-                          exercise_type=exercise_type, exercise_data=job['exercise_data'])
-
-        tomorrow_ping_time = datetime.combine(datetime.today() + timedelta(days=1), earliest_time) - timedelta(
-            minutes=3)
-        print(f'{exercise_type}: Going to sleep until {tomorrow_ping_time}')
-        time.sleep((tomorrow_ping_time - datetime.now()).total_seconds())
-
-
-def handle_job_queue(user_db):
-
-    # words jobs
-    user_data = user_db.get_all_user_data()
+async def ping_users(context):
+    user_data = user_config.get_all_user_data()
+    is_weekend = (datetime.now().weekday() == 5 or datetime.now().weekday() == 6)
+    schedule_col = 'weekend' if is_weekend else 'weekday'
+    print(f'PING: {datetime.now()}')
+    now = datetime.now()
+    users_to_ping = []
     for chat_id, v in user_data.items():
-        user_data[chat_id]['to_skip'] = ('words' not in user_data[chat_id]['exercise_types'])
-        user_data[chat_id]['ping_schedule'] = user_data[chat_id]['schedule']['words']
-    x = threading.Thread(target=lambda: start_job_queue(user_data, exercise_type='words'), daemon=True)
-    x.start()
+        if 'words' in user_data[chat_id]['exercise_types']:
+            ping_schedule = user_data[chat_id]['schedule']['words'][schedule_col]
+            ping_schedule = [(ptime, pexersize) for ptime, pexersize in ping_schedule.items() 
+                                if abs(datetime.combine(datetime.today(), ptime) - now) <= timedelta(minutes=1)]
+            if len(ping_schedule) == 0:
+                continue
+            users_to_ping.append(dict(chat_id=chat_id, lang=user_data[chat_id]['language'], exercise=ping_schedule[0][1]))
+    
+    for user in users_to_ping:
+        await ping_user(user['chat_id'], user['lang'], 'words', user['exercise'])
 
-    # reading jobs
-    user_data = user_db.get_all_user_data()
-    for chat_id, v in user_data.items():
-        user_data[chat_id]['to_skip'] = ('reading' not in user_data[chat_id]['exercise_types'])
-        user_data[chat_id]['ping_schedule'] = user_data[chat_id]['schedule']['reading']
-    x = threading.Thread(target=lambda: start_job_queue(user_data, exercise_type='reading'), daemon=True)
-    x.start()
+
+def nearest_start_time(ping_interval=15 * 60):
+
+    n_pings_per_hour = 60 * 60 // ping_interval
+    ping_times = [ping_interval * (i + 1) // 60 for i in range(n_pings_per_hour)]  # + 1 to avoid having ping_time=0
+    if 60 not in ping_times:
+        ping_times.append(60)
+
+    now = datetime.now()
+    starting_point_min = [ping_time for ping_time in ping_times if ping_time - now.minute >= 0][0]
+    starting_point_hour = now.hour
+    if starting_point_min == 60:
+        starting_point_hour += 1
+        starting_point_min = 0
+
+    next_starting_point = now.replace(hour=starting_point_hour, minute=starting_point_min, second=0, microsecond=0)
+    return (next_starting_point-now).seconds
 
 
 def get_known_words(chat_id, lang, word_ids=None):
@@ -719,7 +677,7 @@ if __name__ == '__main__':
     words_progress_db = WordsProgressDB(words_progress_db_path)
     user_config = UserConfig(user_config_path)
 
-    with open(user_data_root / 'interface.json', 'r', encoding='utf-8') as fp:
+    with open('resources/interface.json', 'r', encoding='utf-8') as fp:
         interface = json.loads(fp.read())
 
     templates = load_templates(str(user_data_root / 'templates'))
@@ -736,7 +694,9 @@ if __name__ == '__main__':
     assistant_model_good = args.model_good
 
     uilang = args.lang
+
     application = Application.builder().token(BOT_TOKEN).build()
+
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_request))
     application.add_handler(CommandHandler("add_word", handle_command))
     application.add_handler(CommandHandler("cur_deck_info", handle_command))
@@ -745,4 +705,11 @@ if __name__ == '__main__':
     application.add_handler(CommandHandler("next_new", handle_command))
     application.add_handler(CommandHandler("known_words", handle_command))
     application.add_handler(CallbackQueryHandler(handle_inline_request))
+
+    job_queue = application.job_queue
+    ping_interval = 15 * 60
+    first_ping = nearest_start_time(ping_interval)
+    print(f"First ping scheduled in: {first_ping} sec")
+    
+    job_queue.run_repeating(ping_users, interval=ping_interval, first=first_ping)
     application.run_polling(allowed_updates=Update.ALL_TYPES)
