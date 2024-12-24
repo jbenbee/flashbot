@@ -746,7 +746,7 @@ if __name__ == '__main__':
     with open('resources/interface.json', 'r', encoding='utf-8') as fp:
         interface = json.loads(fp.read())
 
-    templates = load_templates(str(user_data_root / 'templates'))
+    templates = load_templates(str(Path('resources/templates')))
 
     lp = LearningPlan(interface, templates, words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db,
                       reading_db=reading_db, user_config=user_config)
