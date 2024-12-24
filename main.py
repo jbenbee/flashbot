@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import os.path
 import time
@@ -83,13 +84,22 @@ def refused_answer(text):
     return any([m in text.lower() for m in ['простите', 'извините', 'извини', 'прости', 'пожалуйста', 'mi dispiace', 'i am sorry', "i'm sorry", "lo siento", 'per favore', 'por favor']])
 
 
-def get_audio(query, file_path):
-    response = client.audio.speech.create(
-      model="tts-1",
-      voice="alloy",
-      input=query
+def get_audio(query, lang, file_path):
+    completion = client.chat.completions.create(
+        model="gpt-4o-audio-preview",
+        modalities=["text", "audio"],
+        audio={"voice": "alloy", "format": "wav"},
+        messages=[
+            {
+                "role": "user",
+                "content": f'Pronounce this phrase {lang}: {query}'
+            }
+        ]
     )
-    response.write_to_file(file_path)
+
+    wav_bytes = base64.b64decode(completion.choices[0].message.audio.data)
+    with open(file_path, "wb") as f:
+        f.write(wav_bytes)
 
 
 async def handle_new_exercise(bot, chat_id, exercise):
@@ -111,7 +121,7 @@ async def handle_new_exercise(bot, chat_id, exercise):
             message = exercise.get_next_message_to_user(next_query, assistant_response)
             buttons = None
             if isinstance(exercise, WordsExerciseLearn):
-                buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
+                buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Discard'), (exercise.uid, 'I know this word'), (exercise.uid, 'Pronounce')]
             if isinstance(exercise, WordsExerciseTest):
                 buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
         except Exception as e:
@@ -306,7 +316,7 @@ async def handle_known_words(update: Update, context: ContextTypes.DEFAULT_TYPE)
     bot = context._application.bot
     uilang = lang_map[bot.token]
     lang = user_config.get_user_data(chat_id)['language']
-    await tel_send_message(bot, chat_id, f'Thinking...')
+    await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
     known_words = get_known_words(chat_id, lang)
     known_words_str = "\n".join(known_words)
 
@@ -328,7 +338,7 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
             print(f'Button id {button_id} does not match exercise id {exercise.uid}')
         else:
             if isinstance(exercise, WordsExerciseLearn) or isinstance(exercise, WordsExerciseTest):
-                if f'Ignore this word_{exercise.uid}' == udata:
+                if f'Discard_{exercise.uid}' == udata:
                     words_progress_db.ignore_word(chat_id, exercise.word_id)
                     words_progress_db.save_progress()
 
@@ -366,8 +376,13 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
 
                 elif f'Answer audio_{exercise.uid}' == udata:
                     file_path = f'{chat_id}_{exercise.uid}.mp3'
-                    get_audio(exercise.correct_answer(), file_path)
-                    await tel_send_audio(chat_id, file_path)
+                    get_audio(exercise.correct_answer(), exercise.lang, file_path)
+                    await tel_send_audio(bot, chat_id, file_path)
+                    os.remove(file_path)
+                elif f'Pronounce_{exercise.uid}' == udata:
+                    file_path = f'{chat_id}_{exercise.uid}.mp3'
+                    get_audio(exercise.word, exercise.lang, file_path)
+                    await tel_send_audio(bot, chat_id, file_path)
                     os.remove(file_path)
                 elif f'Next_{exercise.uid}' == udata:
                     await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
@@ -503,14 +518,14 @@ async def handle_request(update, context):
 
                 if chat_id in running_commands.chat_ids: running_commands.pop_command()
 
-                await tel_send_message(bot, chat_id, 'Thinking...')
+                await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
                 next_query, response_format, validation_cls, is_last_query = exercise.get_next_assistant_query(user_response=msg)
                 assistant_response = await get_assistant_response(next_query, tokens, model_base=assistant_model_cheap,
                                                             model_substitute=assistant_model_good,
                                                             uilang=uilang, response_format=response_format, validation_cls=validation_cls)
                 buttons = None
                 if isinstance(exercise, WordsExerciseLearn):
-                    buttons = [(exercise.uid, 'Ignore this word'), (exercise.uid, 'I know this word')]
+                    buttons = [(exercise.uid, 'Discard'), (exercise.uid, 'I know this word')]
                 n_prev_known_words = None
                 if isinstance(exercise, WordsExerciseTest):
                     n_prev_known_words = len(get_known_words(chat_id, lang))
@@ -739,7 +754,7 @@ if __name__ == '__main__':
     shared_objs = [user_config, words_db, words_progress_db, decks_db, running_exercises, running_commands]
 
     # list of known exercise buttons
-    exercise_buttons = ['Ignore this word', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next']
+    exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next', 'Pronounce']
 
     assistant_model_cheap = args.model_cheap
     assistant_model_good = args.model_good
