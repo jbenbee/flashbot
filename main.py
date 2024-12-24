@@ -571,6 +571,8 @@ async def ping_users(context):
     now = datetime.now()
     users_to_ping = []
     for chat_id, v in user_data.items():
+        if v['ui_language'] != uilang: continue
+
         if 'words' in user_data[chat_id]['exercise_types']:
             ping_schedule = user_data[chat_id]['schedule']['words'][schedule_col]
             ping_schedule = [(ptime, pexersize) for ptime, pexersize in ping_schedule.items() 
