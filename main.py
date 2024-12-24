@@ -774,7 +774,7 @@ if __name__ == '__main__':
         application.add_handler(CallbackQueryHandler(handle_inline_request))
 
         job_queue = application.job_queue
-        ping_interval = 3 * 60
+        ping_interval = 15 * 60
         first_ping = nearest_start_time(ping_interval)
         print(f"First ping scheduled in: {first_ping} sec")
         
