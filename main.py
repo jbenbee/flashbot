@@ -22,7 +22,6 @@ from telegram.ext import Application, MessageHandler, filters, CommandHandler, C
 from decks_db import DecksDB
 from learning_plan import LearningPlan
 from words_progress_db import WordsProgressDB
-from reading_db import ReadingDB
 from user_config import UserConfig
 from words_db import WordsDB
 from words_exercise import WordsExerciseLearn, WordsExerciseTest
@@ -151,9 +150,7 @@ def get_new_word_exercise(chat_id, lang, exercise_data):
 
 async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
     uilang = lang_map[bot.token]
-    if exercise_type == 'reading':
-        exercise = lp.get_next_reading_exercise(chat_id, lang, topics=exercise_data)
-    elif exercise_type == 'words':
+    if exercise_type == 'words':
         exercise = get_new_word_exercise(chat_id, lang, exercise_data)
     else:
         raise ValueError(f'Unknown exercise type {exercise_type}')
@@ -735,13 +732,11 @@ if __name__ == '__main__':
     words_db_path = user_data_root / 'words_db.csv'
     decks_db_path = user_data_root / 'decks_db.csv'
     deck_word_db_path = user_data_root / 'deck_word.csv'
-    reading_db_path = user_data_root / 'reading_lists.json'
     words_progress_db_path = user_data_root / 'words_progress_db.csv'
     user_config_path = user_data_root / 'user_config.json'
 
     words_db = WordsDB(words_db_path)
     decks_db = DecksDB(decks_db_path, deck_word_db_path)
-    reading_db = ReadingDB(reading_db_path)
     words_progress_db = WordsProgressDB(words_progress_db_path)
     user_config = UserConfig(user_config_path)
 
@@ -750,8 +745,7 @@ if __name__ == '__main__':
 
     templates = load_templates(str(Path('resources/templates')))
 
-    lp = LearningPlan(interface, templates, words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db,
-                      reading_db=reading_db, user_config=user_config)
+    lp = LearningPlan(interface, templates, words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db, user_config=user_config)
 
     shared_objs = [user_config, words_db, words_progress_db, decks_db, running_exercises, running_commands]
 

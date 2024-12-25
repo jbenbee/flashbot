@@ -2,16 +2,14 @@
 import numpy as np
 import pandas as pd
 
-from reading_exercise import ReadingExercise
 from words_exercise import WordsExerciseLearn, WordsExerciseTest
 
 
 class LearningPlan:
-    def __init__(self, interface, templates, words_progress_db=None, words_db=None, decks_db=None, reading_db=None, user_config=None):
+    def __init__(self, interface, templates, words_progress_db=None, words_db=None, decks_db=None, user_config=None):
         self.progress_db = words_progress_db
         self.words_db = words_db
         self.decks_db = decks_db
-        self.reading_db = reading_db
         self.user_config = user_config
         self.interface = interface
         self.templates = templates
@@ -19,17 +17,6 @@ class LearningPlan:
         # Words that are repeated at least this many times will be used for testing exercises,
         # others will be used for learning exercises.
         self.test_threshold = 2
-
-    def get_next_reading_exercise(self, chat_id, lang, topics=None):
-        reading_data = self.reading_db.get_reading_data()
-        if topics is None:
-            # choose topics specific to the user
-            topics = self.user_config.get_user_data(chat_id)['reading_topics']
-        if len(topics) == 0:
-            return None
-        user_reading_data = {topic: reading_data[topic] for topic in topics}
-        exercise = ReadingExercise(user_reading_data, lang=lang)
-        return exercise
 
     def get_next_words_exercise(self, chat_id, lang, mode):
 

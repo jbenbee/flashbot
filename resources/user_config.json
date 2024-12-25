@@ -4,17 +4,12 @@
     "language": "italian",
     "level": "B1",
     "max_tokens": 600,
-    "exercise_types": ["words", "reading"],
+    "exercise_types": ["words"],
     "current_deck_id": 123,
-    "reading_topics": ["Advanced dialogues on everyday topics", "Beginner dialogues on everyday topics"],
     "schedule": {
       "words": {
         "weekday": {"10:00": "learn", "12:00": "test", "14:00": "test", "16:00": "learn", "18:00": "test", "20:00": "test"},
         "weekend": {"10:00": "learn", "13:00": "test", "16:00": "test", "19:00": "learn", "21:00": "test"}
-      },
-      "reading": {
-        "weekday": {"20:30": ["Beginner dialogues on everyday topics"]},
-        "weekend": {"10:00": ["Advanced dialogues on everyday topics"]}
       }
     }
   },
@@ -24,7 +19,6 @@
     "max_tokens": 600,
     "exercise_types": ["words"],
     "current_deck_id": 124,
-    "reading_topics": [],
     "schedule": {
       "words": {
         "weekday": {"11:00": "learn", "14:00": "test", "17:00": "test", "20:00": "learn", "22:00": "test"},

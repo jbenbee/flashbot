@@ -14,7 +14,7 @@ class UserConfig:
 
         self._user_data = {int(k): copy.deepcopy(v) for k, v in self._user_data_orig.items()}
 
-        for exercise, day in itertools.product(['words', 'reading'], ['weekday', 'weekend']):
+        for exercise, day in itertools.product(['words'], ['weekday', 'weekend']):
             for chat_id, chat_config in self._user_data.items():
                 if exercise not in chat_config['schedule']:
                     self._user_data[chat_id]['schedule'][exercise] = {}
