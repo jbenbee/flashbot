@@ -20,6 +20,7 @@ from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, CallbackQueryHandler, ContextTypes
 
 from decks_db import DecksDB
+from item import Item
 from learning_plan import LearningPlan
 from words_progress_db import WordsProgressDB
 from user_config import UserConfig
@@ -108,7 +109,7 @@ async def handle_new_exercise(bot, chat_id, exercise):
 
         running_exercises.add_exercise(chat_id, exercise)
         if isinstance(exercise, WordsExerciseLearn):
-            increment_word_reps(chat_id, exercise.word_id)
+            lp.process_response(chat_id, exercise, quality=None)
             words_progress_db.save_progress()
         next_query, response_format, validation_cls, is_last_query = exercise.get_next_assistant_query(user_response=None)
         lang = user_config.get_user_data(chat_id)['language']
@@ -526,7 +527,8 @@ async def handle_request(update, context):
                 n_prev_known_words = None
                 if isinstance(exercise, WordsExerciseTest):
                     n_prev_known_words = len(get_known_words(chat_id, lang))
-                    increment_word_reps(chat_id, exercise.word_id)
+                    lp.process_response(chat_id, exercise, quality=assistant_response.translation_score)
+                    words_progress_db.save_progress()
 
                 next_msg = exercise.get_next_message_to_user(next_query, assistant_response)
                 await tel_send_message(bot, chat_id, next_msg, buttons=buttons)
@@ -564,7 +566,7 @@ async def ping_users(context):
     uilang = lang_map[bot.token]
     is_weekend = (datetime.now().weekday() == 5 or datetime.now().weekday() == 6)
     schedule_col = 'weekend' if is_weekend else 'weekday'
-    print(f'PING: {datetime.now()}')
+
     now = datetime.now()
     users_to_ping = []
     for chat_id, v in user_data.items():
@@ -622,15 +624,6 @@ def get_deck_info(chat_id, lang, deck_id):
                  f'Number of known words in the deck is {n_learned_words}.'
     # TODO: put this into the current_deck_info_template
     return group_info
-
-
-def increment_word_reps(chat_id, word_id):
-    words_progress_db.increment_word_reps(chat_id, word_id)
-    progress_df = words_progress_db.get_progress_df()
-    num_reps = progress_df.loc[(progress_df['chat_id'] == chat_id) &
-                               (progress_df['word_id'] == word_id), 'num_reps'].item()
-    if num_reps > 5:
-        words_progress_db.add_known_word(chat_id, word_id)
 
 
 def load_templates(path: str):
