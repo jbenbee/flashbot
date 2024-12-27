@@ -94,12 +94,12 @@ class _LearningPlan:
 
         return exercise
 
-    def get_next_exercise_like(self, exercise, chat_id, lang, mode):
-        if isinstance(exercise, WordsExerciseLearn) or isinstance(exercise, WordsExerciseTest):
-            next_exercise = self.get_next_words_exercise(chat_id, lang, mode)
-        else:
-            raise ValueError(f'Non-word exercises are not supported yet')
-        return next_exercise
+    # def get_next_exercise_like(self, exercise, chat_id, lang, mode):
+    #     if isinstance(exercise, WordsExerciseLearn) or isinstance(exercise, WordsExerciseTest):
+    #         next_exercise = self.get_next_words_exercise(chat_id, lang, mode)
+    #     else:
+    #         raise ValueError(f'Non-word exercises are not supported yet')
+    #     return next_exercise
 
 
 class LearningPlan:
@@ -177,8 +177,7 @@ class LearningPlan:
         uilang = self.user_config.get_user_ui_lang(chat_id)
         if 'test' == mode:
             exercise = WordsExerciseTest(word=row_item['word'], word_id=row_item['id'].item(), lang=lang, uilang=uilang, level=user_level,
-                                         interface=self.interface, templates=self.templates,
-                                         add_metrics=show_test_metrics)
+                                         interface=self.interface, templates=self.templates)
         else:
             exercise = WordsExerciseLearn(word=row_item['word'], meaning=row_item['meaning'], word_id=row_item['id'].item(), lang=lang, uilang=uilang,
                                           num_reps=row_item['num_reps'].item(), interface=self.interface,

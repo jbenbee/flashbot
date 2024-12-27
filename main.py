@@ -23,6 +23,7 @@ from telegram.ext import Application, MessageHandler, filters, CommandHandler, C
 from decks_db import DecksDB
 from item import Item
 from learning_plan import LearningPlan
+from utils import get_audio
 from words_progress_db import WordsProgressDB
 from user_config import UserConfig
 from words_db import WordsDB
@@ -37,71 +38,8 @@ BOT_TOKEN_ENG = os.getenv('BOT_TOKEN_ENG')
 BOT_TOKEN_RU = os.getenv('BOT_TOKEN_RU')
 
 
-async def get_assistant_response(query, tokens, model_base, model_substitute, uilang, response_format=None, validation_cls=None):
-    """
-    model_base is tried first and if the request fails a few times, model_substitute is used instead
-    """
-    nattempts = 0
-    messages = [
-                {"role": "system", "content": interface["You are a great language teacher"][uilang]},
-                {"role": "user", "content": query},
-            ]
-    model = model_base
-    max_attempts = 3
-    while nattempts < max_attempts:
-        nattempts += 1
-        try:
-            print(f'Sending a request to chatgpt ({model})...')
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                max_tokens=tokens,
-                response_format=response_format
-            )
-            break
-        except openai.OpenAIError as e:
-            print(e)
-            time.sleep(nattempts)
-        if nattempts == max_attempts - 1:
-            model = model_substitute
-    print('Done.')
-
-    if nattempts == 3:
-        print('The assistant raised an error.')
-        raise ValueError('The model could not respond in required format')
-    if response.choices[0].message.refusal:
-        print('The assistant refused to respond.')
-        raise ValueError('The model refused to respond')
-
-    if validation_cls is not None:
-        validated_resp = validation_cls.model_validate_json(response.choices[0].message.content)
-    else:
-        validated_resp = response.choices[0].message.content
-
-    return validated_resp
-
-
 def refused_answer(text):
     return any([m in text.lower() for m in ['простите', 'извините', 'извини', 'прости', 'пожалуйста', 'mi dispiace', 'i am sorry', "i'm sorry", "lo siento", 'per favore', 'por favor']])
-
-
-def get_audio(query, lang, file_path):
-    completion = client.chat.completions.create(
-        model="gpt-4o-audio-preview",
-        modalities=["text", "audio"],
-        audio={"voice": "alloy", "format": "wav"},
-        messages=[
-            {
-                "role": "user",
-                "content": f'Pronounce this phrase {lang}: {query}'
-            }
-        ]
-    )
-
-    wav_bytes = base64.b64decode(completion.choices[0].message.audio.data)
-    with open(file_path, "wb") as f:
-        f.write(wav_bytes)
-
 
 async def handle_new_exercise(bot, chat_id, exercise):
     try:
@@ -112,14 +50,9 @@ async def handle_new_exercise(bot, chat_id, exercise):
         if isinstance(exercise, WordsExerciseLearn):
             lp.process_response(chat_id, exercise, quality=None)
             words_progress_db.save_progress()
-        next_query, response_format, validation_cls, is_last_query = exercise.get_next_assistant_query(user_response=None)
-        lang = user_config.get_user_data(chat_id)['language']
-        model = assistant_model_cheap if (lang not in ['uzbek']) else assistant_model_good
-        try:
-            assistant_response = await get_assistant_response(next_query, tokens, model_base=model,
-                                                        model_substitute=assistant_model_good, uilang=uilang,
-                                                        response_format=response_format, validation_cls=validation_cls)
-            message = exercise.get_next_message_to_user(next_query, assistant_response)
+
+        try:        
+            message, _ = await exercise.get_next_user_message(user_response=None)
             buttons = None
             if isinstance(exercise, WordsExerciseLearn):
                 buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Discard'), (exercise.uid, 'I know this word'), (exercise.uid, 'Pronounce')]
@@ -511,21 +444,18 @@ async def handle_request(update, context):
                 if chat_id in running_commands.chat_ids: running_commands.pop_command()
 
                 await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
-                next_query, response_format, validation_cls, is_last_query = exercise.get_next_assistant_query(user_response=msg)
-                assistant_response = await get_assistant_response(next_query, tokens, model_base=assistant_model_cheap,
-                                                            model_substitute=assistant_model_good,
-                                                            uilang=uilang, response_format=response_format, validation_cls=validation_cls)
+                message, quality = await exercise.get_next_user_message(user_response=msg)
+                
                 buttons = None
                 if isinstance(exercise, WordsExerciseLearn):
                     buttons = [(exercise.uid, 'Discard'), (exercise.uid, 'I know this word')]
 
                 if isinstance(exercise, WordsExerciseTest):
 
-                    lp.process_response(chat_id, exercise, quality=assistant_response.translation_score)
+                    lp.process_response(chat_id, exercise, quality=quality)
                     words_progress_db.save_progress()
 
-                next_msg = exercise.get_next_message_to_user(next_query, assistant_response)
-                await tel_send_message(bot, chat_id, next_msg, buttons=buttons)
+                await tel_send_message(bot, chat_id, message, buttons=buttons)
                 words_progress_db.save_progress()
 
             else:
@@ -670,30 +600,9 @@ async def run_apps(apps):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--local", action='store_true', help="Run locally")
-    parser.add_argument("--webhook", type=str, help="Webhook for telegram")
-    parser.add_argument("--model_cheap", type=str, default="gpt-4o-mini")
-    parser.add_argument("--model_good", type=str, default="gpt-4")
-
-    args = parser.parse_args()
-
     running_commands = RunningCommands()
     running_exercises_file = 'running_exercise.jb'
     running_exercises = RunningExercises(running_exercises_file)
-
-    openai_key = os.getenv('OPENAI_KEY')
-    if openai_key is None:
-        with open(Path('api_keys/openai_api.txt'), 'r') as fp:
-                lines = fp.readlines()
-                openai_key = lines[0].strip()
-    google_key = os.getenv('GOOGLE_KEY')
-    if google_key is None:
-        with open(Path('api_keys/google_api.txt'), 'r') as fp:
-                lines = fp.readlines()
-                google_key = lines[0].strip()
-
-    client = openai.OpenAI(api_key=openai_key, timeout=20.0, max_retries=0)
 
     user_data_root = os.getenv('CH_USER_DATA_ROOT')
     user_data_root = 'resources' if user_data_root is None else user_data_root
@@ -722,9 +631,6 @@ if __name__ == '__main__':
 
     # list of known exercise buttons
     exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next', 'Pronounce']
-
-    assistant_model_cheap = args.model_cheap
-    assistant_model_good = args.model_good
 
     apps = []
     lang_map = {}
