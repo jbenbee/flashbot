@@ -1,1 +1,1 @@
-Congrats, you already learned {{n_known_words}} words!
+Congrats, you have already learned {{n_seen_words}} words!

@@ -201,6 +201,11 @@ class LearningPlan:
             if not 0 <= quality <= 5:
                 raise ValueError("Quality must be between 0 and 5")
 
+            if exercise.hint_clicked:
+                quality = int(quality * 0.85)
+            elif exercise.correct_answer_clicked:
+                quality = int(quality * 0.6)
+
             item.e_factor = self.calculate_e_factor(item, quality)
 
             if quality < 3:
@@ -216,3 +221,12 @@ class LearningPlan:
             item.next_review_date = (now + timedelta(days=new_interval)).date()
 
             self.progress_db.set_word_progress(chat_id, exercise.word_id, item)
+
+    def set_word_easy(self, chat_id: int, word_id: int) -> None:
+        item = self.progress_db.get_word_progress(chat_id, word_id)
+        if item is None:
+            raise ValueError(f'Word {word_id} is not found.')
+        item.last_interval = 30
+        new_interval = self.calculate_interval(item)
+        item.next_review_date = (datetime.now() + timedelta(days=new_interval)).date()
+        self.progress_db.set_word_progress(chat_id, word_id, item)

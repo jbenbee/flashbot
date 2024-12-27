@@ -101,6 +101,8 @@ class WordsExerciseTest(Exercise):
         self.templates = templates
         self.add_metrics = add_metrics
         self.n_examples = 1
+        self.hint_clicked = False
+        self.correct_answer_clicked = False
 
         self.is_first_message_to_user = True
         self.assistant_responses = []

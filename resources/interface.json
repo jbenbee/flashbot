@@ -51,14 +51,6 @@
     "russian": "Слова можно добавлять только в те наборы которые вы создали сами",
     "english": "You can only add words to the decks that you created"
   },
-  "Number of known words": {
-    "russian": "Количество выученных слов",
-    "english": "Number of known words"
-  },
-  "List of known words": {
-    "russian": "Список выученных слов",
-    "english": "List of known words"
-  },
   "Create a new deck by typing its name or select an existing deck": {
     "russian": "Выберите существующий набор или создайте новый напечетав и отправив его имя",
     "english": "Create a new deck by typing its name or select an existing deck"

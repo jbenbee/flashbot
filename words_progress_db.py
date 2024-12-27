@@ -50,22 +50,6 @@ class WordsProgressDB:
         self.progress_df.loc[mask, 'to_ignore'] = True
         self._lock.release()
 
-    def add_known_word(self, chat_id, word_id):
-        self._lock.acquire()
-        chat_word_progress = self.progress_df[(self.progress_df['chat_id'] == chat_id) &
-                                              (self.progress_df['word_id'] == word_id)]
-        if chat_word_progress.shape[0] == 0:
-            self._lock.release()
-            self.add_word_to_progress(chat_id, word_id)
-            self._lock.acquire()
-
-        mask = (self.progress_df['chat_id'] == chat_id) & (self.progress_df['word_id'] == word_id)
-        if self.progress_df[mask].shape[0] != 1:
-            self._lock.release()
-            raise ValueError('Number of rows satisfying the condition must be exactly 1.')
-        self.progress_df.loc[mask, 'is_known'] = True
-        self._lock.release()
-
     def get_word_progress(self, chat_id, word_id) -> Optional[Item]:
         self._lock.acquire()
         chat_word_progress = self.progress_df[(self.progress_df['chat_id'] == chat_id) &

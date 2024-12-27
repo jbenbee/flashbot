@@ -230,8 +230,6 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_next_new(update, context)
         elif command == 'next_test':
             await handle_next_test(update, context)
-        elif command == 'known_words':
-            await handle_known_words(update, context)
     except Exception as e:
         if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
         if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
@@ -310,21 +308,6 @@ async def handle_next_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_new_exercise(bot, chat_id, exercise)
 
 
-async def handle_known_words(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.message.chat_id
-    bot = context._application.bot
-    uilang = lang_map[bot.token]
-    lang = user_config.get_user_data(chat_id)['language']
-    await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
-    known_words = get_known_words(chat_id, lang)
-    known_words_str = "\n".join(known_words)
-
-    message_template = templates[uilang]['known_words_info_message']
-    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-    mes = template.render(n_known_words=len(known_words), list_known_words=known_words_str)
-    await tel_send_message(bot, chat_id, mes)
-
-
 async def handle_exercise_button_press(update, context, chat_id, lang, udata, exercise):
     try:
         print(f'Received a button: {udata}')
@@ -348,15 +331,24 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
 
                 elif f'Hint_{exercise.uid}' == udata:
 
+                    running_exercise = running_exercises.pop_exercise(chat_id)
+                    running_exercise.hint_clicked = True
+                    running_exercises.add_exercise(chat_id, running_exercise)
+
                     message_template = templates[uilang]['hint_message']
                     template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
                     mes = template.render(word=exercise.word)
                     await tel_send_message(bot, chat_id, mes)
 
                 elif f'Correct answer_{exercise.uid}' == udata:
+
+                    running_exercise: WordsExerciseTest = running_exercises.pop_exercise(chat_id)
+                    running_exercise.correct_answer_clicked = True
+                    running_exercises.add_exercise(chat_id, running_exercise)
+
                     await tel_send_message(bot, chat_id, exercise.correct_answer())
                 elif f'I know this word_{exercise.uid}' == udata:
-                    words_progress_db.add_known_word(chat_id, exercise.word_id)
+                    lp.set_word_easy(chat_id, exercise.word_id)
                     words_progress_db.save_progress()
 
                     message_template = templates[uilang]['know_word_message']
@@ -364,13 +356,14 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                     mes = template.render(word=exercise.word)
                     await tel_send_message(bot, chat_id, mes)
 
-                    known_words = get_known_words(chat_id, lang)
-                    n_known_words = len(known_words)
-                    if n_known_words % 5 == 0:
+                    progress_df = words_progress_db.get_progress_df()
+                    n_seen_words = progress_df[progress_df['chat_id'] == chat_id].shape[0]
+
+                    if n_seen_words % 10 == 0:
 
                         message_template = templates[uilang]['congrats_learn_message']
                         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-                        mes = template.render(n_known_words=n_known_words)
+                        mes = template.render(n_seen_words=n_seen_words)
                         await tel_send_message(bot, chat_id, mes)
 
                 elif f'Answer audio_{exercise.uid}' == udata:
@@ -525,9 +518,9 @@ async def handle_request(update, context):
                 buttons = None
                 if isinstance(exercise, WordsExerciseLearn):
                     buttons = [(exercise.uid, 'Discard'), (exercise.uid, 'I know this word')]
-                n_prev_known_words = None
+
                 if isinstance(exercise, WordsExerciseTest):
-                    n_prev_known_words = len(get_known_words(chat_id, lang))
+
                     lp.process_response(chat_id, exercise, quality=assistant_response.translation_score)
                     words_progress_db.save_progress()
 
@@ -535,10 +528,6 @@ async def handle_request(update, context):
                 await tel_send_message(bot, chat_id, next_msg, buttons=buttons)
                 words_progress_db.save_progress()
 
-                known_words = get_known_words(chat_id, lang)
-                n_known_words = len(known_words)
-                if n_known_words % 5 == 0 and n_prev_known_words is not None and n_known_words != n_prev_known_words:
-                    await tel_send_message(bot, chat_id, f'Congrats, you already learned {n_known_words} words!')
             else:
                 await tel_send_message(bot, chat_id, f'{interface["No test exercises are running, this message will be ignored"][uilang]}: {msg}')
                 print(f'No test exercises are running, this message will be ignored: {msg}')
@@ -606,27 +595,9 @@ def nearest_start_time(ping_interval=15 * 60):
     return next_sec
 
 
-def get_known_words(chat_id, lang, word_ids=None):
-    words_df = words_db.get_words_df()
-    progress_df = words_progress_db.get_progress_df()
-    progress_words_df = pd.merge(progress_df, words_df, how='left', left_on='word_id',
-                                 right_on='id', sort=False, validate='1:1')
-
-    words_mask = progress_words_df['id'].isin(word_ids) if word_ids is not None else np.ones(progress_words_df.shape[0])
-
-    pw_df = progress_words_df.loc[(progress_words_df['chat_id'] == chat_id) &
-                                  (progress_words_df['lang'] == lang) &
-                                  words_mask &
-                                  progress_words_df['is_known']]
-    words = pw_df['word'].to_list()
-    return words
-
-
 def get_deck_info(chat_id, lang, deck_id):
     deck_words = decks_db.get_deck_words(deck_id)
-    n_learned_words = len(get_known_words(chat_id, lang, word_ids=deck_words))
-    group_info = f'Total number of words in the deck is {len(deck_words)}.\n' \
-                 f'Number of known words in the deck is {n_learned_words}.'
+    group_info = f'Total number of words in the deck is {len(deck_words)}.'
     # TODO: put this into the current_deck_info_template
     return group_info
 
@@ -766,7 +737,6 @@ if __name__ == '__main__':
         application.add_handler(CommandHandler("sel_deck", handle_command))
         application.add_handler(CommandHandler("next_test", handle_command))
         application.add_handler(CommandHandler("next_new", handle_command))
-        application.add_handler(CommandHandler("known_words", handle_command))
         application.add_handler(CallbackQueryHandler(handle_inline_request))
 
         job_queue = application.job_queue
