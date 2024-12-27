@@ -9,7 +9,7 @@
     "current_deck_id": 123,
     "schedule": {
       "words": {
-        "weekday": {"10:00": "learn", "12:00": "test", "14:00": "test", "16:00": "learn", "18:00": "test", "20:00": "test"},
+        "weekday": {"10:00": "learn", "12:00": "test", "14:00": "test_translation", "16:00": "learn", "18:00": "test_flashcard", "20:00": "test"},
         "weekend": {"10:00": "learn", "13:00": "test", "16:00": "test", "19:00": "learn", "21:00": "test"}
       }
     }

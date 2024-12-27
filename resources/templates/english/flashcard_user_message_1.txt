@@ -1,0 +1,3 @@
+Translate into {{lang}} word "{{word}}"
+
+Example sentence: {{example}}

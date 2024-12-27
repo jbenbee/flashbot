@@ -1,0 +1,5 @@
+Translation score: {{score}} (out of 5)
+
+Score justification: {{justification}}
+
+Correct answer: {{correct_answer}}

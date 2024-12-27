@@ -7,7 +7,7 @@ import pandas as pd
 
 from exercise import Exercise
 from item import Item
-from words_exercise import WordsExerciseLearn, WordsExerciseTest
+from words_exercise import FlashcardExercise, WordsExerciseLearn, WordsExerciseTest
 
 
 class _LearningPlan:
@@ -130,7 +130,8 @@ class LearningPlan:
 
         words_df = self.words_db.get_words_df()
 
-        current_deck_id = self.user_config.get_user_data(chat_id)['current_deck_id']
+        user_data = self.user_config.get_user_data(chat_id)
+        current_deck_id = user_data['current_deck_id']
         deck_words_df = words_df.loc[words_df['id'].isin(self.decks_db.get_deck_words(current_deck_id))]
 
         if deck_words_df.shape[0] == 0:
@@ -172,10 +173,16 @@ class LearningPlan:
             print('There are no words for the selected mode.')
             return None
 
-        show_test_metrics = False
         user_level = self.user_config.get_user_data(chat_id)['level']
         uilang = self.user_config.get_user_ui_lang(chat_id)
+        
         if 'test' == mode:
+            mode = 'test_translation' if row_item['num_reps'] >= 3 else 'test_flashcard'
+        
+        if 'test_flashcard' == mode:
+            exercise = FlashcardExercise(word=row_item['word'], word_id=row_item['id'].item(), lang=lang, uilang=uilang, level=user_level,
+                                         interface=self.interface, templates=self.templates)
+        elif 'test_translation' == mode:
             exercise = WordsExerciseTest(word=row_item['word'], word_id=row_item['id'].item(), lang=lang, uilang=uilang, level=user_level,
                                          interface=self.interface, templates=self.templates)
         else:

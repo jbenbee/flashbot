@@ -1,0 +1,4 @@
+Rate the following translation of the word or phrase "{{word_translation}}" into {{lang}} on a scale from 1 to 5.
+1 means the translation has major mistakes, 5 means that the translation is correct.
+Justify your score in one sentence.
+Translation: {{user_response}}

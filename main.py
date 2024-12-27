@@ -27,7 +27,7 @@ from utils import get_audio
 from words_progress_db import WordsProgressDB
 from user_config import UserConfig
 from words_db import WordsDB
-from words_exercise import WordsExerciseLearn, WordsExerciseTest
+from words_exercise import FlashcardExercise, WordsExerciseLearn, WordsExerciseTest
 from running_commands import RunningCommands
 from running_exercises import RunningExercises
 
@@ -37,9 +37,6 @@ app = Flask(__name__)
 BOT_TOKEN_ENG = os.getenv('BOT_TOKEN_ENG')
 BOT_TOKEN_RU = os.getenv('BOT_TOKEN_RU')
 
-
-def refused_answer(text):
-    return any([m in text.lower() for m in ['простите', 'извините', 'извини', 'прости', 'пожалуйста', 'mi dispiace', 'i am sorry', "i'm sorry", "lo siento", 'per favore', 'por favor']])
 
 async def handle_new_exercise(bot, chat_id, exercise):
     try:
@@ -56,8 +53,10 @@ async def handle_new_exercise(bot, chat_id, exercise):
             buttons = None
             if isinstance(exercise, WordsExerciseLearn):
                 buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Discard'), (exercise.uid, 'I know this word'), (exercise.uid, 'Pronounce')]
-            if isinstance(exercise, WordsExerciseTest):
+            elif isinstance(exercise, WordsExerciseTest):
                 buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
+            elif isinstance(exercise, FlashcardExercise):
+                buttons = [(exercise.uid, 'Correct answer')]
         except Exception as e:
             message = f'{interface["Error"][uilang]}: {e}'
             buttons = None
@@ -252,7 +251,7 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
             await tel_send_message(bot, chat_id, interface['Sorry, the exercise has been completed or is expired'][uilang])
             print(f'Button id {button_id} does not match exercise id {exercise.uid}')
         else:
-            if isinstance(exercise, WordsExerciseLearn) or isinstance(exercise, WordsExerciseTest):
+            if isinstance(exercise, WordsExerciseLearn) or isinstance(exercise, WordsExerciseTest) or isinstance(exercise, FlashcardExercise):
                 if f'Discard_{exercise.uid}' == udata:
                     words_progress_db.ignore_word(chat_id, exercise.word_id)
                     words_progress_db.save_progress()
@@ -275,7 +274,7 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
 
                 elif f'Correct answer_{exercise.uid}' == udata:
 
-                    running_exercise: WordsExerciseTest = running_exercises.pop_exercise(chat_id)
+                    running_exercise = running_exercises.pop_exercise(chat_id)
                     running_exercise.correct_answer_clicked = True
                     running_exercises.add_exercise(chat_id, running_exercise)
 
@@ -439,28 +438,20 @@ async def handle_request(update, context):
             # user responded to an exercise
             exercise = running_exercises.current_exercise(chat_id)
 
-            if isinstance(exercise, WordsExerciseTest):
+            if chat_id in running_commands.chat_ids: running_commands.pop_command()
 
-                if chat_id in running_commands.chat_ids: running_commands.pop_command()
-
-                await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
-                message, quality = await exercise.get_next_user_message(user_response=msg)
-                
-                buttons = None
-                if isinstance(exercise, WordsExerciseLearn):
-                    buttons = [(exercise.uid, 'Discard'), (exercise.uid, 'I know this word')]
-
-                if isinstance(exercise, WordsExerciseTest):
-
-                    lp.process_response(chat_id, exercise, quality=quality)
-                    words_progress_db.save_progress()
-
-                await tel_send_message(bot, chat_id, message, buttons=buttons)
+            await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
+            message, quality = await exercise.get_next_user_message(user_response=msg)
+            
+            buttons = None
+            if isinstance(exercise, WordsExerciseLearn):
+                buttons = [(exercise.uid, 'Discard'), (exercise.uid, 'I know this word')]
+            elif isinstance(exercise, WordsExerciseTest) or isinstance(exercise, FlashcardExercise):
+                lp.process_response(chat_id, exercise, quality=quality)
                 words_progress_db.save_progress()
 
-            else:
-                await tel_send_message(bot, chat_id, f'{interface["No test exercises are running, this message will be ignored"][uilang]}: {msg}')
-                print(f'No test exercises are running, this message will be ignored: {msg}')
+            await tel_send_message(bot, chat_id, message, buttons=buttons)
+            words_progress_db.save_progress()
 
         else:
             await tel_send_message(bot, chat_id, f'{interface["No exercises or commands are running, this message will be ignored"][uilang]}: {msg}')

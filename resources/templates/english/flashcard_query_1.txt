@@ -1,0 +1,2 @@
+Show an example of using the {{lang}} word or phrase "{{word}}" at level of proficiency "{{level}}".
+Translate this example and the word itself into {{lang_ui}}.
