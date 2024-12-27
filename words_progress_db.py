@@ -11,7 +11,7 @@ class WordsProgressDB:
     def __init__(self, db_path):
         self.db_path = db_path
         if not os.path.exists(self.db_path):
-            self.progress_df = pd.DataFrame(columns=['chat_id', 'word_id', 'num_reps', 'e_factor', 'last_interval', 'last_review_date', 'next_review_date', 'is_known', 'to_ignore'])
+            self.progress_df = pd.DataFrame(columns=['chat_id', 'word_id', 'num_reps', 'e_factor', 'last_interval', 'last_review_date', 'next_review_date', 'to_ignore'])
             self.save_progress()
         self.progress_df = pd.read_csv(self.db_path)
         self.progress_df['last_review_date'] = pd.to_datetime(self.progress_df['last_review_date'])
@@ -32,7 +32,7 @@ class WordsProgressDB:
     def add_word_to_progress(self, chat_id, word_id):
         self._lock.acquire()
         self.progress_df.loc[len(self.progress_df)] = \
-            {'chat_id': chat_id, 'word_id': word_id, 'num_reps': 0.0, 'is_known': False, 'to_ignore': False,
+            {'chat_id': chat_id, 'word_id': word_id, 'num_reps': 0.0, 'to_ignore': False,
              'e_factor': 2.5, 'last_interval': 0, 'last_review_date': None, 'next_review_date': None}
         self._lock.release()
 
