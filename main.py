@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 import signal
+from zoneinfo import ZoneInfo
 
 import jinja2
 import numpy as np
@@ -567,18 +568,22 @@ async def ping_users(context):
     is_weekend = (datetime.now().weekday() == 5 or datetime.now().weekday() == 6)
     schedule_col = 'weekend' if is_weekend else 'weekday'
 
-    now = datetime.now()
     users_to_ping = []
     for chat_id, v in user_data.items():
         if v['ui_language'] != uilang: continue
 
+        user_now = datetime.now(tz=ZoneInfo(user_data[chat_id]["timezone"]))
+
         if 'words' in user_data[chat_id]['exercise_types']:
             ping_schedule = user_data[chat_id]['schedule']['words'][schedule_col]
-            ping_schedule = [(ptime, pexersize) for ptime, pexersize in ping_schedule.items() 
-                                if abs(datetime.combine(datetime.today(), ptime) - now) <= timedelta(minutes=1)]
+
+            user_ping_times = [datetime.combine(user_now.date(), ptime) for ptime in ping_schedule.keys()]
+
+            ping_schedule = [pexersize for uptime, pexersize in zip(user_ping_times, ping_schedule.values()) 
+                                if abs(uptime - user_now) <= timedelta(minutes=1)]
             if len(ping_schedule) == 0:
                 continue
-            users_to_ping.append(dict(chat_id=chat_id, lang=user_data[chat_id]['language'], exercise=ping_schedule[0][1]))
+            users_to_ping.append(dict(chat_id=chat_id, lang=user_data[chat_id]['language'], exercise=ping_schedule[0]))
     
     for user in users_to_ping:
         await ping_user(bot, user['chat_id'], user['lang'], 'words', user['exercise'])
@@ -727,6 +732,8 @@ if __name__ == '__main__':
     deck_word_db_path = user_data_root / 'deck_word.csv'
     words_progress_db_path = user_data_root / 'words_progress_db.csv'
     user_config_path = user_data_root / 'user_config.json'
+
+    TIMEZONE = os.getenv('TIMEZONE')
 
     words_db = WordsDB(words_db_path)
     decks_db = DecksDB(decks_db_path, deck_word_db_path)

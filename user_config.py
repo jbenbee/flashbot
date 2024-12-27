@@ -3,6 +3,7 @@ import itertools
 import json
 import threading
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 class UserConfig:
@@ -18,8 +19,11 @@ class UserConfig:
             for chat_id, chat_config in self._user_data.items():
                 if exercise not in chat_config['schedule']:
                     self._user_data[chat_id]['schedule'][exercise] = {}
+
+                user_tz = ZoneInfo(self._user_data[chat_id]["timezone"])
+                         
                 self._user_data[chat_id]['schedule'][exercise][day] = \
-                    {datetime.strptime(x, '%H:%M').time(): data for x, data in chat_config['schedule'][exercise][day].items()} \
+                    {datetime.strptime(x, '%H:%M').time().replace(tzinfo=user_tz): data for x, data in chat_config['schedule'][exercise][day].items()} \
                     if day in self._user_data[chat_id]['schedule'][exercise].keys() else {}
         self._lock = threading.Lock()
 

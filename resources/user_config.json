@@ -2,6 +2,7 @@
     "<user 1 chat id>": {
     "ui_language": "spanish",
     "language": "italian",
+    "timezone": "Europe/Berlin",
     "level": "B1",
     "max_tokens": 600,
     "exercise_types": ["words"],
@@ -15,6 +16,8 @@
   },
   "<user 2 chat id>": {
     "language": "spanish",
+    "ui_language": "english",
+    "timezone": "America/Los_Angeles",
     "level": "A1",
     "max_tokens": 600,
     "exercise_types": ["words"],
