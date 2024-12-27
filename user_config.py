@@ -10,7 +10,7 @@ class UserConfig:
     def __init__(self, path):
 
         self.data_path = path
-        with open(self.data_path, 'r') as fp:
+        with open(self.data_path, 'r', encoding='utf-8') as fp:
             self._user_data_orig = json.loads(fp.read())
 
         self._user_data = {int(k): copy.deepcopy(v) for k, v in self._user_data_orig.items()}

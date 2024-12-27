@@ -176,8 +176,9 @@ class WordsExerciseTest(Exercise):
             self.user_messages.append(user_response)
 
             message_template = self.templates[self.uilang]['test_word_query_2']
+
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-            query = template.render(lang=self.lang, user_response=user_response, sentence=self.assistant_responses[0]['test'])
+            query = template.render(lang=self.interface[self.lang][self.uilang], user_response=user_response, sentence=self.assistant_responses[0]['test'])
 
             validation_cls = ResponseCorrectionSchema
             schema = validation_cls.model_json_schema()

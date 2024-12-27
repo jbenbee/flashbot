@@ -16,6 +16,8 @@ class WordsProgressDB:
         self.progress_df = pd.read_csv(self.db_path)
         self.progress_df['last_review_date'] = pd.to_datetime(self.progress_df['last_review_date'])
         self.progress_df['next_review_date'] = pd.to_datetime(self.progress_df['next_review_date']).dt.date
+        self.progress_df['word_id'] = self.progress_df['word_id'].astype(int)
+        self.progress_df['chat_id'] = self.progress_df['chat_id'].astype(int)
         self._lock = threading.Lock()
 
     def get_progress_df(self):

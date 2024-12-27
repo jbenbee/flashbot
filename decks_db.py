@@ -12,6 +12,9 @@ class DecksDB:
         self.deck_word_db_path = deck_word_db_path
         self.decks = pd.read_csv(self.decks_path)
         self.deck_word = pd.read_csv(self.deck_word_db_path)
+        self.decks['id'] = self.decks['id'].astype(int)
+        self.deck_word['deck_id'] = self.deck_word['deck_id'].astype(int)
+        self.deck_word['word_id'] = self.deck_word['word_id'].astype(int)
         self._lock = threading.Lock()
 
     def get_decks_lang(self, owner: str, lang: str):
