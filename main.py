@@ -70,22 +70,10 @@ async def handle_new_exercise(bot, chat_id, exercise):
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
 
-def get_new_word_exercise(chat_id, lang, exercise_data):
-    exercise = lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
-    if exercise is None and exercise_data == 'test':
-        # there are no words to test
-        print(f'There are no exercises of type "words" for data {exercise_data}.')
-        exercise = lp.get_next_words_exercise(chat_id, lang, mode='repeat_test')
-    elif exercise is None and exercise_data == 'learn':
-        print(f'There are no exercises of type "words" for data {exercise_data}.')
-        exercise = lp.get_next_words_exercise(chat_id, lang, mode='repeat_learn')
-    return exercise
-
-
 async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
     uilang = lang_map[bot.token]
     if exercise_type == 'words':
-        exercise = get_new_word_exercise(chat_id, lang, exercise_data)
+        exercise = lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
     else:
         raise ValueError(f'Unknown exercise type {exercise_type}')
 
@@ -218,7 +206,7 @@ async def handle_next_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uilang = lang_map[bot.token]
     lang = user_config.get_user_data(chat_id)['language']
     await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
-    exercise = get_new_word_exercise(chat_id, lang, 'test')
+    exercise = lp.get_next_words_exercise(chat_id, lang, mode='test')
     if exercise is None:
         await tel_send_message(bot, chat_id, interface['Could not create an exercise, please try again later'][uilang])
         print(f'Could not create an exercise "words" for data "test".')
@@ -232,7 +220,7 @@ async def handle_next_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uilang = lang_map[bot.token]
     lang = user_config.get_user_data(chat_id)['language']
     await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
-    exercise = get_new_word_exercise(chat_id, lang, 'learn')
+    exercise = lp.get_next_words_exercise(chat_id, lang, mode='learn')
     if exercise is None:
         await tel_send_message(bot, chat_id, interface['Could not create an exercise, please try again later'][uilang])
         print(f'Could not create an exercise "words" for data "learn".')
@@ -310,10 +298,11 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                     os.remove(file_path)
                 elif f'Next_{exercise.uid}' == udata:
                     await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
-                    exercise = get_new_word_exercise(chat_id, lang, 'learn')
+                    mode = 'learn' if isinstance(exercise, WordsExerciseLearn) else 'test_flashcard' if isinstance(exercise, FlashcardExercise) else WordsExerciseTest
+                    exercise = lp.get_next_words_exercise(chat_id, lang, mode)
                     if exercise is None:
                         await tel_send_message(bot, chat_id, interface['Could not create an exercise, please try again later'][uilang])
-                        print(f'Could not create an exercise "words" for data "learn".')
+                        print(f'Could not create an exercise "words" for data "{mode}".')
                     else:
                         await handle_new_exercise(bot, chat_id, exercise)
                 else:
@@ -449,6 +438,7 @@ async def handle_request(update, context):
             elif isinstance(exercise, WordsExerciseTest) or isinstance(exercise, FlashcardExercise):
                 lp.process_response(chat_id, exercise, quality=quality)
                 words_progress_db.save_progress()
+                buttons = [(exercise.uid, 'Next')]
 
             await tel_send_message(bot, chat_id, message, buttons=buttons)
             words_progress_db.save_progress()
@@ -532,13 +522,23 @@ def load_templates(path: str):
         if os.path.isdir(lang_path):
             templates[lang] = {}
 
-            for template_name in os.listdir(lang_path):
-                template_path = os.path.join(lang_path, template_name)
+            for item in os.listdir(lang_path):
+
+                template_path = os.path.join(lang_path, item)
 
                 if os.path.isfile(template_path):
                     with open(template_path, 'r', encoding='utf-8') as file:
-                        tname = os.path.splitext(template_name)[0]
+                        tname = os.path.splitext(item)[0]
                         templates[lang][tname] = file.read()
+                else:
+                    dst_lang = item
+                    templates[lang][dst_lang] = {}
+                    for tname in os.listdir(template_path):
+                        tpath = os.path.join(lang_path, dst_lang, tname)
+                        if os.path.isfile(tpath):
+                            with open(tpath, 'r', encoding='utf-8') as file:
+                                tfilename = os.path.splitext(tname)[0]
+                                templates[lang][dst_lang][tfilename] = file.read()
 
     return templates
 

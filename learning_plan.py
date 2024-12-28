@@ -147,7 +147,7 @@ class LearningPlan:
             return None
 
         row_item = None
-        if 'test' == mode or mode is None:
+        if mode in ['test', 'test_flashcard', 'test_translation'] or mode is None:
             not_ignored_seen_words = not_ignored_words[~not_ignored_words['num_reps'].isna()]
             not_ignored_seen_words = not_ignored_seen_words.sort_values(by='next_review_date')
             to_review_mask = not_ignored_seen_words['next_review_date'].isna() | (not_ignored_seen_words['next_review_date'] <= now)
@@ -156,22 +156,13 @@ class LearningPlan:
                 row_item = to_review_words.iloc[0]
             else:
                 row_item = not_ignored_seen_words.iloc[0]
-        elif 'learn' == mode:
+        else:
             not_seen_words = not_ignored_words[not_ignored_words['num_reps'].isna()]
             if not_seen_words.shape[0] > 0:
                 row_item = not_seen_words.iloc[0]
             else:
                 not_ignored_words = not_ignored_words.sort_values(by='num_reps')
                 row_item = not_ignored_words.iloc[0]
-        elif ('repeat_test' == mode) or ('repeat_learn' == mode):
-            # choose not ignored words that have been seen least often
-            min_num_reps = not_ignored_words['num_reps'].min()
-            row_item = not_ignored_words.loc[not_ignored_words['num_reps'] == min_num_reps].iloc[0]
-
-        if row_item is None:
-            # there are no words for the selected mode
-            print('There are no words for the selected mode.')
-            return None
 
         user_level = self.user_config.get_user_data(chat_id)['level']
         uilang = self.user_config.get_user_ui_lang(chat_id)

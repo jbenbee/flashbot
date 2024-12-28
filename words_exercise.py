@@ -226,10 +226,10 @@ class FlashcardExercise(Exercise):
         lang_tr = self.interface[self.lang][self.uilang]
         if user_response is None:
             # first message to the user
-
-            message_template = self.templates[self.uilang]['flashcard_query_1']
+            message_template = self.templates[self.uilang]['flashcard_query_1'] if 'flashcard_query_1' in self.templates[self.uilang].keys() else \
+                                self.templates[self.uilang][self.lang]['flashcard_query_1']
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-            query = template.render(word=self.word, lang=lang_tr, level=self.level, lang_ui=lang_tr)
+            query = template.render(word=self.word, level=self.level)
 
             validation_cls = FlashCardExampleSchema
             schema = validation_cls.model_json_schema()
@@ -278,9 +278,10 @@ class FlashcardExercise(Exercise):
                                                         response_format=response_format, validation_cls=validation_cls)
             message_template = self.templates[self.uilang]['flashcard_user_message_2']
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+            correct_answer = self.word if assistant_response.translation_score < 5 else None
             message = template.render(score=assistant_response.translation_score,
                                   justification=assistant_response.score_justification,
-                                  correct_answer=self.word)
+                                  correct_answer=correct_answer)
             quality = assistant_response.translation_score
 
         return message, quality

@@ -1,5 +1,6 @@
 Оценка перевода: {{score}} (из 5)
 
 Объяснение оценки: {{justification}}
-
+{% if correct_answer %}
 Правильный ответ: {{correct_answer}}
+{% endif %}
