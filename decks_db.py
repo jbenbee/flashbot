@@ -17,6 +17,12 @@ class DecksDB:
         self.deck_word['word_id'] = self.deck_word['word_id'].astype(int)
         self._lock = threading.Lock()
 
+    def get_decks_df(self):
+        self._lock.acquire()
+        pdf_cpy = self.decks.copy()
+        self._lock.release()
+        return pdf_cpy
+
     def get_decks_lang(self, owner: str, lang: str):
         # returns an array of dictionaries
         self._lock.acquire()

@@ -1,27 +1,19 @@
 import asyncio
-import base64
 import json
 import os.path
-import time
 from datetime import datetime, timedelta
 from pathlib import Path
 import signal
 from zoneinfo import ZoneInfo
 
 import jinja2
-import numpy as np
-import pandas as pd
 from flask import Flask
 import requests
-import argparse
-
-import openai
 
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, CallbackQueryHandler, ContextTypes
 
 from decks_db import DecksDB
-from item import Item
 from learning_plan import LearningPlan
 from utils import get_audio
 from words_progress_db import WordsProgressDB
@@ -40,7 +32,8 @@ BOT_TOKEN_RU = os.getenv('BOT_TOKEN_RU')
 
 async def handle_new_exercise(bot, chat_id, exercise):
     try:
-        tokens = user_config.get_user_data(chat_id)['max_tokens']
+        user_data = user_config.get_user_data(chat_id)
+        lang = user_data['language']
         uilang = lang_map[bot.token]
 
         running_exercises.add_exercise(chat_id, exercise)
@@ -50,6 +43,10 @@ async def handle_new_exercise(bot, chat_id, exercise):
 
         try:        
             message, _ = await exercise.get_next_user_message(user_response=None)
+
+            if not lp.has_enough_words(chat_id, lang):
+                await lp.add_words(chat_id, lang)
+
             buttons = None
             if isinstance(exercise, WordsExerciseLearn):
                 buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Discard'), (exercise.uid, 'I know this word'), (exercise.uid, 'Pronounce')]

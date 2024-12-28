@@ -1,12 +1,16 @@
 import math
 from datetime import datetime, timedelta
 from dataclasses import dataclass
+import os
 from typing import Dict, List, Optional
+import jinja2
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel, Field
 
 from exercise import Exercise
 from item import Item
+from utils import get_assistant_response
 from words_exercise import FlashcardExercise, WordsExerciseLearn, WordsExerciseTest
 
 
@@ -140,7 +144,7 @@ class LearningPlan:
         progress_df = self.progress_db.get_progress_df()
         progress_words_df = pd.merge(progress_df, deck_words_df, how='outer', left_on='word_id',
                                      right_on='id', sort=False)
-        not_ignored_words = progress_words_df.loc[(progress_words_df['lang'] == lang.lower()) &
+        not_ignored_words = progress_words_df.loc[(progress_words_df['lang'] == lang.lower()) & (progress_words_df['chat_id'] == chat_id) &
                                                   progress_words_df['to_ignore'].isin([False, np.nan])]
 
         if not_ignored_words.shape[0] == 0:
@@ -227,3 +231,83 @@ class LearningPlan:
         new_interval = self.calculate_interval(item)
         item.next_review_date = (datetime.now() + timedelta(days=new_interval)).date()
         self.progress_db.set_word_progress(chat_id, word_id, item)
+
+    def has_enough_words(self, chat_id, lang):
+        progress_df = self.progress_db.get_progress_df()
+
+        words_df = self.words_db.get_words_df()
+        words_lang = words_df[words_df['lang'] == lang]
+
+        all_seen_words = progress_df.loc[(progress_df['chat_id'] == chat_id)]
+        lang_seen_words = pd.merge(all_seen_words, words_lang, how='inner', left_on='word_id',
+                                        right_on='id', sort=False)
+
+        decks_df = self.decks_db.get_decks_df()
+        user_decks = decks_df[decks_df['owner'] == str(chat_id)]['id']
+        user_words = []
+        for deck in user_decks:
+            deck_words = words_lang.loc[words_lang['id'].isin(self.decks_db.get_deck_words(deck))]['id'].to_list()
+            user_words += deck_words
+        return lang_seen_words.shape[0] < len(user_words)
+
+    async def add_words(self, chat_id, lang):
+
+        user_data = self.user_config.get_user_data(chat_id)
+        uilang = user_data['ui_language']
+
+        words_df = self.words_db.get_words_df()
+        words_lang = words_df[words_df['lang'] == lang]
+
+        decks_df = self.decks_db.get_decks_df()
+        user_decks = decks_df[decks_df['owner'] == str(chat_id)]['id']
+        user_words = []
+        for deck in user_decks:
+            deck_words = words_lang.loc[words_lang['id'].isin(self.decks_db.get_deck_words(deck))]['word'].to_list()
+            user_words += deck_words
+
+        user_words_str = ', '.join(user_words)
+
+        message_template = self.templates[uilang]['gen_words'] if 'gen_words' in self.templates[uilang].keys() else \
+                            self.templates[uilang][lang]['gen_words']
+        template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+        query = template.render(lang=lang, user_words_str=user_words_str)
+
+        model_base = os.getenv('MODEL_BASE')
+        model_substitute = os.getenv('MODEL_SUBSTITUTE')
+
+        class NewWordsSchema(BaseModel):
+            class Config:
+                extra = 'forbid'
+
+            deck_theme: str
+            deck_words: list[str]
+
+        validation_cls = NewWordsSchema
+        schema = validation_cls.model_json_schema()
+
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {"strict": True,
+                            "name": "new_words",
+                            "schema": schema
+                            }
+        }
+
+        for i in range(3):
+            assistant_response = await get_assistant_response(self.interface, query, model_base=model_base,
+                                                    model_substitute=model_substitute, uilang=user_data['ui_language'],
+                                                    response_format=response_format, validation_cls=validation_cls)
+            words = assistant_response.deck_words
+
+            new_words = [word for word in words if words_df[(words_df['word'] == word) & (words_df['lang'] == lang)].shape[0] == 0]
+            if len(new_words) >= 15:
+                break
+
+        deck_id = self.decks_db.create_deck(str(chat_id), assistant_response.deck_theme, lang)
+        self.decks_db.save_decks_db()
+
+        for word in new_words:
+            word_id = self.words_db.add_new_word(word, lang)
+            self.decks_db.add_new_word(deck_id, word_id)
+        self.words_db.save_words_db()
+        self.decks_db.save_decks_db()

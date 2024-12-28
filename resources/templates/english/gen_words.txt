@@ -1,0 +1,3 @@
+Here are {{lang}} words that I have already learned: {{user_words_str}}
+
+Analyze the words that I have already learned. Based on this, find the topic that could be useful to me and in which I know few words. Suggest 30 new {{lang}} words in the selected topic.
