@@ -229,7 +229,7 @@ class FlashcardExercise(Exercise):
             message_template = self.templates[self.uilang]['flashcard_query_1'] if 'flashcard_query_1' in self.templates[self.uilang].keys() else \
                                 self.templates[self.uilang][self.lang]['flashcard_query_1']
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-            query = template.render(word=self.word, level=self.level)
+            query = template.render(word=self.word, level=self.level, lang=lang_tr, lang_ui=self.uilang)
 
             validation_cls = FlashCardExampleSchema
             schema = validation_cls.model_json_schema()
