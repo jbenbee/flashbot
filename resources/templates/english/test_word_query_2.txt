@@ -1,6 +1,7 @@
-Rate the following translation into {{lang}} on a scale from 1 to 5 according to how grammatically correct and natural it is.
+A student was asked to perform a translation of a sentence into {{lang}} using word (phrase) "{{word}}".
+Rate the translation on a scale from 1 to 5 according to how grammatically correct and natural it is. Using transliteration is allowed and is not considered to be a mistake.
 1 means the translation has major mistakes, 5 means that the translation is correct and it could have been written by a native speaker.
 Justify your score in one sentence and if the translation has mistakes, explain them.
-Show a translation where the identified mistakes are corrected.
+Show a translation where the identified mistakes are corrected and using the word (phrase) {{word}}, is possible.
 Sentence: {{sentence}}
 Translation: {{user_response}}

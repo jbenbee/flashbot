@@ -172,7 +172,9 @@ class WordsExerciseTest(Exercise):
             message_template = self.templates.get_template(self.uilang, self.lang, 'test_word_query_2')
 
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-            query = template.render(lang=self.interface[self.lang][self.uilang], user_response=user_response, sentence=self.assistant_responses[0]['test'])
+            query = template.render(lang=self.interface[self.lang][self.uilang],
+                                    user_response=user_response, sentence=self.assistant_responses[0]['test'],
+                                    word=self.word)
 
             validation_cls = ResponseCorrectionSchema
             schema = validation_cls.model_json_schema()
