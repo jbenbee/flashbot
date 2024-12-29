@@ -1,3 +1,0 @@
-Selected deck "{{cur_deck_name}}"
-Deck info:
-{{deck_info}}

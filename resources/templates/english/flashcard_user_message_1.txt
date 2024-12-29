@@ -1,5 +1,5 @@
-Translate into {{lang}}:
+🌍 **Translate into {{lang}}:**  
+*{{word}}*
 
-{{word}}
-
-Context: {{example}}
+📖 **Context:**  
+_{{example}}_

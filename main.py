@@ -12,6 +12,7 @@ import requests
 
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, CallbackQueryHandler, ContextTypes
+import telegramify_markdown
 
 from decks_db import DecksDB
 from learning_plan import LearningPlan
@@ -23,6 +24,14 @@ from words_db import WordsDB
 from words_exercise import FlashcardExercise, WordsExerciseLearn, WordsExerciseTest
 from running_commands import RunningCommands
 from running_exercises import RunningExercises
+
+
+import logging
+
+# Disable optional logging
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('apscheduler').setLevel(logging.WARNING)
+logging.getLogger('telegram').setLevel(logging.WARNING)
 
 
 app = Flask(__name__)
@@ -122,7 +131,8 @@ async def tel_send_message(bot, chat_id, text, buttons=None):
             "inline_keyboard": buttons_to_send
         }
 
-    await bot.send_message(chat_id, text, reply_markup=reply_markup)
+    converted = telegramify_markdown.markdownify(text)
+    await bot.send_message(chat_id, converted, reply_markup=reply_markup,  parse_mode="MarkdownV2")
 
 
 async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

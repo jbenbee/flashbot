@@ -12,3 +12,4 @@ rouge_score
 Jinja2
 python-telegram-bot[ext]
 pydantic
+telegramify-markdown

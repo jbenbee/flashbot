@@ -1,1 +1,1 @@
-Word "{{word}}" will be shown less often
+👍 The word *"{{word}}"* will be shown less often.

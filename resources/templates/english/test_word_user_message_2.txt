@@ -1,7 +1,22 @@
-Translation score: {{score}} (out of 5)
-
-Score justification: {{justification}}
-{% if explanation %}
-Explanation of mistakes: {{explanation}}
+{% if score == 5 %}
+🌟 **Translation Score:** *{{score}}* (out of 5)  
+{% elif score >= 4 %}
+👍 **Translation Score:** *{{score}}* (out of 5)  
+{% elif score >= 3 %}
+🙂 **Translation Score:** *{{score}}* (out of 5)  
+{% elif score >= 2 %}
+😕 **Translation Score:** *{{score}}* (out of 5)  
+{% else %}
+❌ **Translation Score:** *{{score}}* (out of 5)  
 {% endif %}
-Corrected translation: {{corrected_translation}}
+
+📝 **Score Justification:**  
+{{justification}}
+
+{% if explanation %}
+❌ **Explanation of Mistakes:**  
+{{explanation}}
+{% endif %}
+
+✅ **Corrected Translation:**  
+*{{corrected_translation}}*

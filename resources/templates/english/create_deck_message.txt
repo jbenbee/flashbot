@@ -1,1 +1,0 @@
-Created deck "{{msg}}" and set is as a current deck

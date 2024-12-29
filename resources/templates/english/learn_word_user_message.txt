@@ -1,11 +1,12 @@
-Learning word "{{word}}" (# of repetitions: {{num_reps}}):
+🔍 **Learning Word:** *{{word}}*  
+📊 **Repetitions:** {{num_reps}}
 
-Example usage:
+📚 **Example Usage:**
 {% for entry in examples %}
-- {{entry[0]}} ({{entry[1]}})
+- *{{entry[0]}}* ({{entry[1]}})
 {% endfor %}
 
 {% if conjugations %}
-Conjugations in present tense:
+🔄 **Present Tense Conjugations:**
 {{conjugations}}
 {% endif %}

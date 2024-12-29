@@ -1,3 +1,2 @@
-Translate into {{lang}}:
-
-{{test_sentence}}
+🌍 **Translate into {{lang}}:**  
+*{{test_sentence}}*

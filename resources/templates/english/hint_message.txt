@@ -1,1 +1,2 @@
-Try to use the word "{{word}}" in your translation
+💡 **Hint:**  
+Try to use the word *"{{word}}"* in your translation.

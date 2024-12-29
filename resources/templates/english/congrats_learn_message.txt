@@ -1,1 +1,2 @@
-Congrats, you have already learned {{n_seen_words}} words!
+🎉 **Congratulations!**  
+You have already learned *{{n_seen_words}}* words! 🚀

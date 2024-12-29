@@ -1,1 +1,1 @@
-Word "{{word}}" is added to ignore list.
+👍 Word *"{{word}}"* is added to ignore list.
