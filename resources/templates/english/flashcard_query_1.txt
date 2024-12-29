@@ -1,2 +1,4 @@
 Show an example of using the {{lang}} word or phrase "{{word}}" at level of proficiency "{{level}}".
-Translate this example and the word itself into {{lang_ui}}.
+Translate this example into {{lang_ui}}. Provide different possible translations of the word itself into {{lang_ui}}.
+The word "important" must not appear under any circumstances.
+Verbs in "{{word}}" must not appear in the example in the infinitiv form.

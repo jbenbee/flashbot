@@ -1,3 +1,5 @@
-Translate into {{lang}} word "{{word}}"
+Translate into {{lang}}:
 
-Example sentence: {{example}}
+{{word}}
+
+Context: {{example}}
