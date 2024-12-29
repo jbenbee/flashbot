@@ -278,9 +278,13 @@ class FlashcardExercise(Exercise):
             message_template = self.templates.get_template(self.uilang, self.lang, 'flashcard_user_message_2')
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             correct_answer = self.word if assistant_response.translation_score < 5 else None
-            message = template.render(score=assistant_response.translation_score,
-                                  justification=assistant_response.score_justification,
-                                  correct_answer=correct_answer)
+            if correct_answer is not None:
+                message = template.render(score=assistant_response.translation_score,
+                                    justification=assistant_response.score_justification,
+                                    correct_answer=correct_answer)
+            else:
+                message = template.render(score=assistant_response.translation_score,
+                    justification=assistant_response.score_justification)
             quality = assistant_response.translation_score
 
         return message, quality
