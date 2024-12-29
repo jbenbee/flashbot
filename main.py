@@ -361,6 +361,7 @@ async def handle_request(update, context):
             # user responded to an exercise
             exercise = running_exercises.current_exercise(chat_id)
 
+            if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
             if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
 
             await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
