@@ -1,3 +1,4 @@
 Show me 3 examples of using the {{lang}} word or phrase "{{word}}" at level of proficiency "{{level}}".
 Start examples with a verb, noun, name, adverb or pronoun.
 The word "important" must not appear under any circumstances.
+Verbs in "{{word}}" must not appear in the examples in the infinitiv form, they must appear in different tenses in each example.

@@ -77,7 +77,7 @@ class WordsExerciseLearn(Exercise):
         self.model_substitute = os.getenv('MODEL_SUBSTITUTE')
 
     async def get_next_user_message(self, user_response: Optional[str]) -> tuple[str, int]:
-        message_template = self.templates[self.uilang]['learn_word_query']
+        message_template = self.templates.get_template(self.uilang, self.lang, 'learn_word_query')
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         word_phrase = "word" if len(self.word.split()) == 1 else "phrase"
         lang_tr = self.interface[self.lang][self.uilang]
@@ -96,7 +96,7 @@ class WordsExerciseLearn(Exercise):
         assistant_response = await get_assistant_response(self.interface, query, uilang=self.uilang, model_base=self.model_base,
                                                           model_substitute=self.model_substitute, response_format=response_format, validation_cls=WordExamplesSchema)
         
-        message_template = self.templates[self.uilang]['learn_word_user_message']
+        message_template = self.templates.get_template(self.uilang, self.lang, 'learn_word_user_message')
         examples = [(entry.example_sentence, entry.sentence_translation) for entry in assistant_response.example_list]
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         message = template.render(word=self.word, num_reps=self.num_reps, examples=examples, conjugations=assistant_response.conjugations)
@@ -131,7 +131,7 @@ class WordsExerciseTest(Exercise):
         if user_response is None:
             # first message to the user
 
-            message_template = self.templates[self.uilang]['test_word_query_1']
+            message_template = self.templates.get_template(self.uilang, self.lang, 'test_word_query_1')
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             query = template.render(word=self.word, lang=lang_tr, level=self.level)
 
@@ -161,7 +161,7 @@ class WordsExerciseTest(Exercise):
 
             self.assistant_responses.append(dict(test=test_sentence, answer=answer_sentence))
 
-            message_template = self.templates[self.uilang]['test_word_user_message_1']
+            message_template = self.templates.get_template(self.uilang, self.lang, 'test_word_user_message_1')
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             message = template.render(lang=lang_tr, test_sentence=test_sentence)
             quality = None
@@ -169,7 +169,7 @@ class WordsExerciseTest(Exercise):
         else:
             self.user_messages.append(user_response)
 
-            message_template = self.templates[self.uilang]['test_word_query_2']
+            message_template = self.templates.get_template(self.uilang, self.lang, 'test_word_query_2')
 
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             query = template.render(lang=self.interface[self.lang][self.uilang], user_response=user_response, sentence=self.assistant_responses[0]['test'])
@@ -188,7 +188,7 @@ class WordsExerciseTest(Exercise):
             assistant_response = await get_assistant_response(self.interface, query, model_base=self.model_base,
                                                         model_substitute=self.model_substitute, uilang=self.uilang,
                                                         response_format=response_format, validation_cls=validation_cls)
-            message_template = self.templates[self.uilang]['test_word_user_message_2']
+            message_template = self.templates.get_template(self.uilang, self.lang, 'test_word_user_message_2')
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             message = template.render(score=assistant_response.translation_score,
                                   justification=assistant_response.score_justification,
@@ -226,8 +226,7 @@ class FlashcardExercise(Exercise):
         lang_tr = self.interface[self.lang][self.uilang]
         if user_response is None:
             # first message to the user
-            message_template = self.templates[self.uilang]['flashcard_query_1'] if 'flashcard_query_1' in self.templates[self.uilang].keys() else \
-                                self.templates[self.uilang][self.lang]['flashcard_query_1']
+            message_template = self.templates.get_template(self.uilang, self.lang, 'flashcard_query_1')
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             query = template.render(word=self.word, level=self.level, lang=lang_tr, lang_ui=self.uilang)
 
@@ -249,7 +248,7 @@ class FlashcardExercise(Exercise):
             self.assistant_responses.append(dict(example=assistant_response.example, translation_example=assistant_response.translation_of_example,
                                                  translation_word=assistant_response.translation_of_word))
 
-            message_template = self.templates[self.uilang]['flashcard_user_message_1']
+            message_template = self.templates.get_template(self.uilang, self.lang, 'flashcard_user_message_1')
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             message = template.render(lang=lang_tr, lang_ui=self.uilang, word=assistant_response.translation_of_word, example=assistant_response.translation_of_example)
             quality = None
@@ -257,7 +256,7 @@ class FlashcardExercise(Exercise):
         else:
             self.user_messages.append(user_response)
 
-            message_template = self.templates[self.uilang]['flashcard_query_2']
+            message_template = self.templates.get_template(self.uilang, self.lang, 'flashcard_query_2')
 
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             query = template.render(lang=self.interface[self.lang][self.uilang], user_response=user_response, word_translation=self.assistant_responses[-1]['translation_word'])
@@ -276,7 +275,7 @@ class FlashcardExercise(Exercise):
             assistant_response = await get_assistant_response(self.interface, query, model_base=self.model_base,
                                                         model_substitute=self.model_substitute, uilang=self.uilang,
                                                         response_format=response_format, validation_cls=validation_cls)
-            message_template = self.templates[self.uilang]['flashcard_user_message_2']
+            message_template = self.templates.get_template(self.uilang, self.lang, 'flashcard_user_message_2')
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             correct_answer = self.word if assistant_response.translation_score < 5 else None
             message = template.render(score=assistant_response.translation_score,

@@ -15,6 +15,7 @@ from telegram.ext import Application, MessageHandler, filters, CommandHandler, C
 
 from decks_db import DecksDB
 from learning_plan import LearningPlan
+from templates import Templates
 from utils import get_audio
 from words_progress_db import WordsProgressDB
 from user_config import UserConfig
@@ -176,7 +177,7 @@ async def handle_cur_deck_info(update: Update, context: ContextTypes.DEFAULT_TYP
     cur_deck_name = decks_db.get_deck_name(cur_deck_id)
     deck_info = get_deck_info(chat_id, lang, cur_deck_id)
 
-    message_template = templates[uilang]['current_deck_info_message']
+    message_template = templates.get_template(uilang, lang, 'current_deck_info_message')
     template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
     mes = template.render(cur_deck_name=cur_deck_name, deck_info=deck_info)
     await tel_send_message(bot, chat_id, mes)
@@ -241,7 +242,7 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                     words_progress_db.ignore_word(chat_id, exercise.word_id)
                     words_progress_db.save_progress()
 
-                    message_template = templates[uilang]['word_ignore_message']
+                    message_template = templates.get_template(uilang, lang, 'word_ignore_message')
                     template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
                     mes = template.render(word=exercise.word)
                     await tel_send_message(bot, chat_id, mes)
@@ -252,7 +253,7 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                     running_exercise.hint_clicked = True
                     running_exercises.add_exercise(chat_id, running_exercise)
 
-                    message_template = templates[uilang]['hint_message']
+                    message_template = templates.get_template(uilang, lang, 'hint_message')
                     template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
                     mes = template.render(word=exercise.word)
                     await tel_send_message(bot, chat_id, mes)
@@ -268,7 +269,7 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                     lp.set_word_easy(chat_id, exercise.word_id)
                     words_progress_db.save_progress()
 
-                    message_template = templates[uilang]['know_word_message']
+                    message_template = templates.get_template(uilang, lang, 'know_word_message')
                     template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
                     mes = template.render(word=exercise.word)
                     await tel_send_message(bot, chat_id, mes)
@@ -278,7 +279,7 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
 
                     if n_seen_words % 10 == 0:
 
-                        message_template = templates[uilang]['congrats_learn_message']
+                        message_template = templates.get_template(uilang, lang, 'congrats_learn_message')
                         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
                         mes = template.render(n_seen_words=n_seen_words)
                         await tel_send_message(bot, chat_id, mes)
@@ -324,7 +325,7 @@ def execute_command_button(context, chat_id, lang, command, button_data):
         user_config.set_deck(str(chat_id), cur_deck_id)
         deck_info = get_deck_info(chat_id, lang, cur_deck_id)
 
-        message_template = templates[uilang]['sel_deck_message']
+        message_template = templates.get_template(uilang, lang, 'sel_deck_message')
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         user_msg = template.render(cur_deck_name=cur_deck_name, deck_info=deck_info)
 
@@ -346,7 +347,7 @@ def execute_command_message(context, chat_id, lang, command, msg):
         decks_db.save_decks_db()
         cur_deck = decks_db.get_deck_name(cur_deck_id)
 
-        message_template = templates[uilang]['add_word_message']
+        message_template = templates.get_template(uilang, lang, 'add_word_message')
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         user_msg = template.render(word=word, cur_deck=cur_deck)
 
@@ -356,7 +357,7 @@ def execute_command_message(context, chat_id, lang, command, msg):
         user_config.set_deck(str(chat_id), deck_id)
         decks_db.save_decks_db()
 
-        message_template = templates[uilang]['create_deck_message']
+        message_template = templates.get_template(uilang, lang, 'create_deck_message')
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         user_msg = template.render(msg=msg)
 
@@ -411,7 +412,6 @@ async def handle_request(update, context):
         print(f'{chat_id} message: {msg}')
 
         lang = user_config.get_user_data(chat_id)['language']
-        tokens = user_config.get_user_data(chat_id)['max_tokens']
         
         if chat_id in running_commands.chat_ids:
             # handle an input for a command
@@ -510,36 +510,6 @@ def get_deck_info(chat_id, lang, deck_id):
     return group_info
 
 
-def load_templates(path: str):
-    templates = dict()
-
-    for lang in os.listdir(path):
-        lang_path = os.path.join(path, lang)
-
-        if os.path.isdir(lang_path):
-            templates[lang] = {}
-
-            for item in os.listdir(lang_path):
-
-                template_path = os.path.join(lang_path, item)
-
-                if os.path.isfile(template_path):
-                    with open(template_path, 'r', encoding='utf-8') as file:
-                        tname = os.path.splitext(item)[0]
-                        templates[lang][tname] = file.read()
-                else:
-                    dst_lang = item
-                    templates[lang][dst_lang] = {}
-                    for tname in os.listdir(template_path):
-                        tpath = os.path.join(lang_path, dst_lang, tname)
-                        if os.path.isfile(tpath):
-                            with open(tpath, 'r', encoding='utf-8') as file:
-                                tfilename = os.path.splitext(tname)[0]
-                                templates[lang][dst_lang][tfilename] = file.read()
-
-    return templates
-
-
 async def run_apps(apps):
 
     stop_event = asyncio.Event()
@@ -611,7 +581,7 @@ if __name__ == '__main__':
     with open('resources/interface.json', 'r', encoding='utf-8') as fp:
         interface = json.loads(fp.read())
 
-    templates = load_templates(str(Path('resources/templates')))
+    templates = Templates(str(Path('resources/templates')))
 
     lp = LearningPlan(interface, templates, words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db, user_config=user_config)
 

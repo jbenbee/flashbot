@@ -11,6 +11,7 @@ class DecksDB:
         self.decks_path = decks_path
         self.deck_word_db_path = deck_word_db_path
         self.decks = pd.read_csv(self.decks_path)
+        self.decks['owner'] = self.decks['owner'].astype(str)
         self.deck_word = pd.read_csv(self.deck_word_db_path)
         self.decks['id'] = self.decks['id'].astype(int)
         self.deck_word['deck_id'] = self.deck_word['deck_id'].astype(int)
@@ -26,7 +27,7 @@ class DecksDB:
     def get_decks_lang(self, owner: str, lang: str):
         # returns an array of dictionaries
         self._lock.acquire()
-        owner_lang_data = self.decks.loc[self.decks['owner'].isin([owner, 'common']) & (self.decks['language'] == lang)]
+        owner_lang_data = self.decks.loc[self.decks['owner'].isin([owner, str(owner), 'common']) & (self.decks['language'] == lang)]
         res = [dict(id=data['id'], owner=data['owner'], name=data['name'], language=data['name'], tags=data['tags']) for d, data in owner_lang_data.iterrows()]
         self._lock.release()
         return res

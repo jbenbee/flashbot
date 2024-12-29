@@ -174,8 +174,7 @@ class LearningPlan:
 
         user_words_str = ', '.join(not_ignored_words['word'].to_list())
 
-        message_template = self.templates[uilang]['gen_words'] if 'gen_words' in self.templates[uilang].keys() else \
-                            self.templates[uilang][lang]['gen_words']
+        message_template = self.templates.get_template(uilang, lang, 'gen_words')
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         query = template.render(lang=lang, user_words_str=user_words_str)
 
