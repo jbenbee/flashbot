@@ -13,5 +13,7 @@
 📝 **Score Justification:**  
 {{justification}}
 
+{% if correct_answer %}
 ✅ **Correct Answer:**  
-*{{correct_answer}}*
+_{{correct_answer}}_
+{% endif %}

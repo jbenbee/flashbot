@@ -1,2 +1,2 @@
 🌍 **Translate into {{lang}}:**  
-*{{test_sentence}}*
+_{{test_sentence}}_

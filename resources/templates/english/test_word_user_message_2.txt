@@ -19,4 +19,4 @@
 {% endif %}
 
 ✅ **Corrected Translation:**  
-*{{corrected_translation}}*
+_{{corrected_translation}}_

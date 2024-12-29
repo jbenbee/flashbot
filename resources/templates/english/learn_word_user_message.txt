@@ -1,9 +1,9 @@
-🔍 **Learning Word:** *{{word}}*  
+🔍 **Learning Word:** _{{word}}_
 📊 **Repetitions:** {{num_reps}}
 
 📚 **Example Usage:**
 {% for entry in examples %}
-- *{{entry[0]}}* ({{entry[1]}})
+- _{{entry[0]}}_ ({{entry[1]}})
 {% endfor %}
 
 {% if conjugations %}

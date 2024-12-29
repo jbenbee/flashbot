@@ -1,1 +1,1 @@
-Word "{{word}}" is successfully added
+👍 Word _"{{word}}"_ is successfully added

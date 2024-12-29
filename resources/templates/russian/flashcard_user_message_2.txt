@@ -15,5 +15,5 @@
 
 {% if correct_answer %}
 ✅ **Правильный ответ:**  
-*{{correct_answer}}*
+_{{correct_answer}}_
 {% endif %}
