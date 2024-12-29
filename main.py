@@ -353,7 +353,7 @@ async def handle_request(update, context):
         if chat_id in running_commands.chat_ids:
             # handle an input for a command
             command = running_commands.pop_command(chat_id)
-            if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise()
+            if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
 
             user_msg = execute_command_message(context, chat_id, lang, command, msg)
             await tel_send_message(bot, chat_id, user_msg)
@@ -361,7 +361,7 @@ async def handle_request(update, context):
             # user responded to an exercise
             exercise = running_exercises.current_exercise(chat_id)
 
-            if chat_id in running_commands.chat_ids: running_commands.pop_command()
+            if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
 
             await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
             message, quality = await exercise.get_next_user_message(user_response=msg)
