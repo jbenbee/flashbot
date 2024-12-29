@@ -41,38 +41,46 @@ class LearningPlan:
         now = datetime.now().date()
 
         words_df = self.words_db.get_words_df()
+        deck_words_df = self.decks_db.get_deck_word_df()
 
-        deck_words_df = words_df
+        deck_words_df = pd.merge(words_df, deck_words_df, how='inner', left_on='id', right_on='word_id', sort=False)
+        user_decks = self.decks_db.get_user_decks(chat_id, lang)
+        deck_words_df = deck_words_df[deck_words_df['deck_id'].isin(user_decks)]
 
         if deck_words_df.shape[0] == 0:
             return None
 
         progress_df = self.progress_db.get_progress_df()
-        progress_words_df = pd.merge(progress_df, deck_words_df, how='outer', left_on='word_id',
-                                     right_on='id', sort=False)
-        not_ignored_words = progress_words_df.loc[(progress_words_df['lang'] == lang.lower()) & (progress_words_df['chat_id'] == chat_id) &
-                                                  progress_words_df['to_ignore'].isin([False, np.nan])]
+        progress_df = progress_df[progress_df['to_ignore'].isin([False, np.nan])]
 
-        if not_ignored_words.shape[0] == 0:
-            return None
-
-        row_item = None
         if mode in ['test', 'test_flashcard', 'test_translation'] or mode is None:
-            not_ignored_seen_words = not_ignored_words[~not_ignored_words['num_reps'].isna()]
-            not_ignored_seen_words = not_ignored_seen_words.sort_values(by='next_review_date')
-            to_review_mask = not_ignored_seen_words['next_review_date'].isna() | (not_ignored_seen_words['next_review_date'] <= now)
+
+            words_progress = pd.merge(progress_df, deck_words_df, how='left', left_on='word_id', right_on='word_id', sort=False)
+            user_words = words_progress.loc[(words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id)]
+
+            if user_words.shape[0] == 0:
+                return None
+
+            user_words = user_words.sort_values(by='next_review_date')
+            to_review_mask = ((user_words['next_review_date'] <= now) | user_words['next_review_date'].isna())
             if to_review_mask.sum() > 0:
-                to_review_words = not_ignored_seen_words[to_review_mask]
+                to_review_words = user_words[to_review_mask]
                 row_item = to_review_words.iloc[0]
             else:
-                row_item = not_ignored_seen_words.iloc[0]
+                row_item = user_words.iloc[0]
         else:
-            not_seen_words = not_ignored_words[not_ignored_words['num_reps'].isna()]
-            if not_seen_words.shape[0] > 0:
-                row_item = not_seen_words.iloc[0]
+
+            words_progress = pd.merge(progress_df, deck_words_df, how='right', left_on='word_id',
+                                        right_on='id', sort=False)
+            user_words = words_progress.loc[(words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id)]
+            user_words = user_words.sort_values(by='next_review_date')
+
+            unseen_words = user_words[user_words['next_review_date'].isna()]
+
+            if unseen_words.shape[0] > 0:
+                row_item = unseen_words.iloc[0]
             else:
-                not_ignored_words = not_ignored_words.sort_values(by='num_reps')
-                row_item = not_ignored_words.iloc[0]
+                row_item = user_words.sample(n=1).iloc[0]
 
         user_level = self.user_config.get_user_data(chat_id)['level']
         uilang = self.user_config.get_user_ui_lang(chat_id)
@@ -94,12 +102,13 @@ class LearningPlan:
         return exercise
 
     def process_response(self, chat_id: int, exercise: Exercise, quality: Optional[int]) -> None:
-        
+
         item = self.progress_db.get_word_progress(chat_id, exercise.word_id)
 
-        if quality is None and item is None:
-            # a word was learned (quality is None) for the first time (item is None)
-            self.progress_db.add_word_to_progress(chat_id, exercise.word_id)
+        if quality is None:
+            # a word was learned
+            if item is None:
+                self.progress_db.add_word_to_progress(chat_id, exercise.word_id)
             item = self.progress_db.get_word_progress(chat_id, exercise.word_id)
             now = datetime.now()
             item.next_review_date = (now + timedelta(days=1)).date()
@@ -127,7 +136,7 @@ class LearningPlan:
             item.last_review_date = now
             item.next_review_date = (now + timedelta(days=new_interval)).date()
 
-            self.progress_db.set_word_progress(chat_id, exercise.word_id, item)
+        self.progress_db.set_word_progress(chat_id, exercise.word_id, item)
 
     def set_word_easy(self, chat_id: int, word_id: int) -> None:
         item = self.progress_db.get_word_progress(chat_id, word_id)
@@ -148,11 +157,10 @@ class LearningPlan:
         lang_seen_words = pd.merge(all_seen_words, words_lang, how='inner', left_on='word_id',
                                         right_on='id', sort=False)
 
-        decks_df = self.decks_db.get_decks_df()
-        user_decks = decks_df[decks_df['owner'] == str(chat_id)]['id']
+        user_decks = self.decks_db.get_user_decks(chat_id, lang)
         user_words = []
         for deck in user_decks:
-            deck_words = words_lang.loc[words_lang['id'].isin(self.decks_db.get_deck_words(deck))]['id'].to_list()
+            deck_words = self.decks_db.get_deck_words(deck)
             user_words += deck_words
         return lang_seen_words.shape[0] < len(user_words)
 
@@ -209,11 +217,11 @@ class LearningPlan:
             if len(new_words) >= 15:
                 break
 
-        deck_id = self.decks_db.create_deck(str(chat_id), assistant_response.deck_theme, lang)
+        custom_deck_id = self.decks_db.get_custom_deck_id(str(chat_id), lang)
         self.decks_db.save_decks_db()
 
         for word in new_words:
             word_id = self.words_db.add_new_word(word, lang)
-            self.decks_db.add_new_word(deck_id, word_id)
+            self.decks_db.add_new_word(custom_deck_id, word_id)
         self.words_db.save_words_db()
         self.decks_db.save_decks_db()

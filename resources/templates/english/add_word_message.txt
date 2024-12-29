@@ -1,1 +1,1 @@
-Word "{{word}}" is successfully added to deck "{{cur_deck}}"
+Word "{{word}}" is successfully added

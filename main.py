@@ -140,10 +140,6 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         if command == 'add_word':
             await handle_add_word(update, context)
-        elif command == 'cur_deck_info':
-            await handle_cur_deck_info(update, context)
-        elif command == 'sel_deck':
-            await handle_sel_deck(update, context)
         elif command == 'next_new':
             await handle_next_new(update, context)
         elif command == 'next_test':
@@ -160,42 +156,8 @@ async def handle_add_word(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     chat_id = update.message.chat_id
     bot = context._application.bot
     uilang = lang_map[bot.token]
-    cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
-    if decks_db.is_deck_owner(str(chat_id), cur_deck_id):
-        running_commands.add_command(chat_id, 'add_word')
-        await tel_send_message(bot, chat_id, interface['Type the word that you would like to add'][uilang])
-    else:
-        await tel_send_message(bot, chat_id, interface['You can only add words to the decks that you created'][uilang])
-
-
-async def handle_cur_deck_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = update.message.chat_id
-    bot = context._application.bot
-    uilang = lang_map[bot.token]
-    lang = user_config.get_user_data(chat_id)['language']
-    cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
-    cur_deck_name = decks_db.get_deck_name(cur_deck_id)
-    deck_info = get_deck_info(chat_id, lang, cur_deck_id)
-
-    message_template = templates.get_template(uilang, lang, 'current_deck_info_message')
-    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-    mes = template.render(cur_deck_name=cur_deck_name, deck_info=deck_info)
-    await tel_send_message(bot, chat_id, mes)
-
-
-async def handle_sel_deck(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.message.chat_id
-    bot = context._application.bot
-    uilang = lang_map[bot.token]
-    lang = user_config.get_user_data(chat_id)['language']
-    running_commands.add_command(chat_id, 'sel_deck')
-    decks = decks_db.get_decks_lang(str(chat_id), lang)
-    bot = context._application.bot
-    if len(decks) > 0:
-        buttons = [(deck['id'], deck['name']) for deck in decks]
-        await tel_send_message(bot, chat_id, f'{interface["Create a new deck by typing its name or select an existing deck"][uilang]}:', buttons=buttons)
-    else:
-        await tel_send_message(bot, chat_id, interface['Create a new deck by typing its name'][uilang])
+    running_commands.add_command(chat_id, 'add_word')
+    await tel_send_message(bot, chat_id, interface['Type the word that you would like to add'][uilang])
 
 
 async def handle_next_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -296,7 +258,7 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                     os.remove(file_path)
                 elif f'Next_{exercise.uid}' == udata:
                     await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
-                    mode = 'learn' if isinstance(exercise, WordsExerciseLearn) else 'test_flashcard' if isinstance(exercise, FlashcardExercise) else WordsExerciseTest
+                    mode = 'learn' if isinstance(exercise, WordsExerciseLearn) else 'test'
                     exercise = lp.get_next_words_exercise(chat_id, lang, mode)
                     if exercise is None:
                         await tel_send_message(bot, chat_id, interface['Could not create an exercise, please try again later'][uilang])
@@ -315,51 +277,21 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
 
-def execute_command_button(context, chat_id, lang, command, button_data):
-    bot = context._application.bot
-    uilang = lang_map[bot.token]
-    if command == 'sel_deck':
-        # choose an existing deck
-        cur_deck_name, cur_deck_id = button_data.split('_')
-        cur_deck_id = int(cur_deck_id)
-        user_config.set_deck(str(chat_id), cur_deck_id)
-        deck_info = get_deck_info(chat_id, lang, cur_deck_id)
-
-        message_template = templates.get_template(uilang, lang, 'sel_deck_message')
-        template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-        user_msg = template.render(cur_deck_name=cur_deck_name, deck_info=deck_info)
-
-    else:
-        raise ValueError(f'Unexpected command {command}.')
-    return user_msg
-
-
 def execute_command_message(context, chat_id, lang, command, msg):
     bot = context._application.bot
     uilang = lang_map[bot.token]
     if command == 'add_word':
         words = msg.strip().split('\n')
-        cur_deck_id = user_config.get_user_data(chat_id)['current_deck_id']
+        custom_deck_id = decks_db.get_custom_deck_id(str(chat_id), lang)
         for word in words:
             word_id = words_db.add_new_word(word, lang)
-            decks_db.add_new_word(cur_deck_id, word_id)
+            decks_db.add_new_word(custom_deck_id, word_id)
         words_db.save_words_db()
         decks_db.save_decks_db()
-        cur_deck = decks_db.get_deck_name(cur_deck_id)
 
         message_template = templates.get_template(uilang, lang, 'add_word_message')
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-        user_msg = template.render(word=word, cur_deck=cur_deck)
-
-    elif command == 'sel_deck':
-        # create a new deck
-        deck_id = decks_db.create_deck(str(chat_id), msg, lang)
-        user_config.set_deck(str(chat_id), deck_id)
-        decks_db.save_decks_db()
-
-        message_template = templates.get_template(uilang, lang, 'create_deck_message')
-        template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-        user_msg = template.render(msg=msg)
+        user_msg = template.render(word=word)
 
     else:
         raise ValueError(f'Unexpected command {command}.')
@@ -386,11 +318,6 @@ async def handle_inline_request(update, context):
                 await handle_exercise_button_press(update, context, chat_id, lang, data, exercise)
             else:
                 await tel_send_message(bot, chat_id, interface['Sorry, the exercise has been completed or is expired'][uilang])
-        elif chat_id in running_commands.chat_ids:
-            # user pressed a button needed to complete a command
-            command = running_commands.pop_command(chat_id)
-            user_msg = execute_command_button(context, chat_id, lang, command, data)
-            await tel_send_message(bot, chat_id, user_msg)
         else:
             await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
             print(f'Unexpected inline request: {data}')
@@ -503,13 +430,6 @@ def nearest_start_time(ping_interval=15 * 60):
     return next_sec
 
 
-def get_deck_info(chat_id, lang, deck_id):
-    deck_words = decks_db.get_deck_words(deck_id)
-    group_info = f'Total number of words in the deck is {len(deck_words)}.'
-    # TODO: put this into the current_deck_info_template
-    return group_info
-
-
 async def run_apps(apps):
 
     stop_event = asyncio.Event()
@@ -597,8 +517,6 @@ if __name__ == '__main__':
 
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_request))
         application.add_handler(CommandHandler("add_word", handle_command))
-        application.add_handler(CommandHandler("cur_deck_info", handle_command))
-        application.add_handler(CommandHandler("sel_deck", handle_command))
         application.add_handler(CommandHandler("next_test", handle_command))
         application.add_handler(CommandHandler("next_new", handle_command))
         application.add_handler(CallbackQueryHandler(handle_inline_request))

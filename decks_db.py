@@ -24,6 +24,12 @@ class DecksDB:
         self._lock.release()
         return pdf_cpy
 
+    def get_deck_word_df(self):
+        self._lock.acquire()
+        pdf_cpy = self.deck_word.copy()
+        self._lock.release()
+        return pdf_cpy
+
     def get_decks_lang(self, owner: str, lang: str):
         # returns an array of dictionaries
         self._lock.acquire()
@@ -38,17 +44,23 @@ class DecksDB:
         self._lock.release()
         return res
 
-    def is_deck_owner(self, owner: str, deck_id: int):
+    def get_user_decks(self, chat_id: int, lang: str):
         self._lock.acquire()
-        actual_owner = self.decks.loc[self.decks['id'] == deck_id, 'owner'].item()
+        res = self.decks.loc[(self.decks['owner'] == str(chat_id)) & (self.decks['language'] == lang)]['id'].to_list()
         self._lock.release()
-        return owner == actual_owner
+        return res
 
-    def create_deck(self, owner: str, deck_name: str, lang: str):
+    def get_custom_deck_id(self, chat_id, lang):
+        self._lock.acquire()
+        res = self.decks.loc[(self.decks['owner'] == str(chat_id)) & (self.decks['language'] == lang) & (self.decks['name'] == 'custom'), 'id'].item()
+        self._lock.release()
+        return res
+
+    def add_custom_deck(self, chat_id: str, lang: str):
         self._lock.acquire()
         new_deck_id = len(self.decks)
         self.decks.loc[new_deck_id] = \
-            dict(id=len(self.decks), owner=owner, name=deck_name, language=lang, tags=np.nan)
+            dict(id=len(self.decks), owner=chat_id, name='custom', language=lang, tags=np.nan)
         self._lock.release()
         return new_deck_id
 
@@ -63,12 +75,6 @@ class DecksDB:
         self.deck_word.loc[len(self.deck_word)] = \
             dict(deck_id=deck_id, word_id=word_id)
         self._lock.release()
-
-    def get_deck_name(self, deck_id: int):
-        self._lock.acquire()
-        res = self.decks.loc[self.decks['id'] == deck_id, 'name'].item()
-        self._lock.release()
-        return res
 
     def release_lock(self):
         if self._lock.locked():
