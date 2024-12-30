@@ -108,5 +108,10 @@
   {
     "russian": "Ошибка",
     "english": "Error"
+  },
+  "The exercise has already been answered, this message will be ignored":
+  {
+    "russian": "Вы уже ответили на это упражнение, это сообщение будет проигнорировано",
+    "english": "The exercise has already been answered, this message will be ignored"
   }
 }

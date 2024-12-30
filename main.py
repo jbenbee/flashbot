@@ -376,9 +376,8 @@ async def handle_request(update, context):
                 await tel_send_message(bot, chat_id, message, buttons=buttons)
                 words_progress_db.save_progress()
             else:
-                running_exercises.pop_exercise(chat_id)
-                await tel_send_message(bot, chat_id, f'{interface["No exercises or commands are running, this message will be ignored"][uilang]}: {msg}')
-                print(f'No running commands or exercises, ignore user message: {msg}')
+                await tel_send_message(bot, chat_id, f'{interface["The exercise has already been answered, this message will be ignored"][uilang]}: {msg}')
+                print(f'The exercise has already been answered, this message will be ignored: {msg}')
 
         else:
             await tel_send_message(bot, chat_id, f'{interface["No exercises or commands are running, this message will be ignored"][uilang]}: {msg}')

@@ -75,6 +75,7 @@ class WordsExerciseLearn(Exercise):
         self.num_reps = num_reps + 1 if not math.isnan(num_reps) else 1
         self.model_base = os.getenv('MODEL_BASE')
         self.model_substitute = os.getenv('MODEL_SUBSTITUTE')
+        self.is_responded = True
 
     async def get_next_user_message(self, user_response: Optional[str]) -> tuple[str, int]:
         message_template = self.templates.get_template(self.uilang, self.lang, 'learn_word_query')
