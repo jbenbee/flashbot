@@ -6,7 +6,6 @@
     "level": "B1",
     "max_tokens": 600,
     "exercise_types": ["words"],
-    "current_deck_id": 123,
     "schedule": {
       "words": {
         "weekday": {"10:00": "learn", "12:00": "test", "14:00": "test_translation", "16:00": "learn", "18:00": "test_flashcard", "20:00": "test"},
@@ -21,7 +20,6 @@
     "level": "A1",
     "max_tokens": 600,
     "exercise_types": ["words"],
-    "current_deck_id": 124,
     "schedule": {
       "words": {
         "weekday": {"11:00": "learn", "14:00": "test", "17:00": "test", "20:00": "learn", "22:00": "test"},
