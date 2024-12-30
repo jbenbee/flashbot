@@ -36,8 +36,11 @@ class LearningPlan:
         new_ef = item.e_factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
         return max(1.3, new_ef)
     
-    def get_next_words_exercise(self, chat_id: str, lang: str, mode: Optional[str]=None) -> Optional[Exercise]:
-        """Get all items that need to be reviewed"""
+    async def get_next_words_exercise(self, chat_id: str, lang: str, mode: Optional[str]=None) -> Optional[Exercise]:
+        
+        if not self.has_enough_words(chat_id, lang):
+            await self.add_words(chat_id, lang)
+
         now = datetime.now().date()
 
         words_df = self.words_db.get_words_df()
@@ -56,31 +59,32 @@ class LearningPlan:
         if mode in ['test', 'test_flashcard', 'test_translation'] or mode is None:
 
             words_progress = pd.merge(progress_df, deck_words_df, how='left', left_on='word_id', right_on='word_id', sort=False)
-            user_words = words_progress.loc[(words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id)]
+            user_words_progress = words_progress.loc[(words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id)]
 
-            if user_words.shape[0] == 0:
+            if user_words_progress.shape[0] == 0:
                 return None
 
-            user_words = user_words.sort_values(by='next_review_date')
-            to_review_mask = ((user_words['next_review_date'] <= now) | user_words['next_review_date'].isna())
+            user_words_progress = user_words_progress.sort_values(by='next_review_date')
+            to_review_mask = ((user_words_progress['next_review_date'] <= now) | user_words_progress['next_review_date'].isna())
             if to_review_mask.sum() > 0:
-                to_review_words = user_words[to_review_mask]
+                to_review_words = user_words_progress[to_review_mask]
                 row_item = to_review_words.iloc[0]
             else:
-                row_item = user_words.iloc[0]
+                row_item = user_words_progress.iloc[0]
         else:
 
-            words_progress = pd.merge(progress_df, deck_words_df, how='right', left_on='word_id',
-                                        right_on='id', sort=False)
-            user_words = words_progress.loc[(words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id)]
-            user_words = user_words.sort_values(by='next_review_date')
+            user_words_progress = pd.merge(progress_df, deck_words_df, how='right', left_on='word_id', right_on='id', sort=False)
+            user_words_progress = user_words_progress.sort_values(by='next_review_date')
 
-            unseen_words = user_words[user_words['next_review_date'].isna()]
+            if user_words_progress.shape[0] == 0:
+                return None
+
+            unseen_words = user_words_progress[user_words_progress['next_review_date'].isna()]
 
             if unseen_words.shape[0] > 0:
                 row_item = unseen_words.iloc[0]
             else:
-                row_item = user_words.sample(n=1).iloc[0]
+                row_item = user_words_progress.sample(n=1).iloc[0]
 
         user_level = self.user_config.get_user_data(chat_id)['level']
         uilang = self.user_config.get_user_ui_lang(chat_id)

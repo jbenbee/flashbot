@@ -54,9 +54,6 @@ async def handle_new_exercise(bot, chat_id, exercise):
         try:        
             message, _ = await exercise.get_next_user_message(user_response=None)
 
-            if not lp.has_enough_words(chat_id, lang):
-                await lp.add_words(chat_id, lang)
-
             buttons = None
             if isinstance(exercise, WordsExerciseLearn):
                 buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Discard'), (exercise.uid, 'I know this word'), (exercise.uid, 'Pronounce')]
@@ -80,7 +77,7 @@ async def handle_new_exercise(bot, chat_id, exercise):
 async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
     uilang = lang_map[bot.token]
     if exercise_type == 'words':
-        exercise = lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
+        exercise = await lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
     else:
         raise ValueError(f'Unknown exercise type {exercise_type}')
 
@@ -176,7 +173,7 @@ async def handle_next_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uilang = lang_map[bot.token]
     lang = user_config.get_user_data(chat_id)['language']
     await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
-    exercise = lp.get_next_words_exercise(chat_id, lang, mode='test')
+    exercise = await lp.get_next_words_exercise(chat_id, lang, mode='test')
     if exercise is None:
         await tel_send_message(bot, chat_id, interface['Could not create an exercise, please try again later'][uilang])
         print(f'Could not create an exercise "words" for data "test".')
@@ -190,7 +187,7 @@ async def handle_next_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uilang = lang_map[bot.token]
     lang = user_config.get_user_data(chat_id)['language']
     await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
-    exercise = lp.get_next_words_exercise(chat_id, lang, mode='learn')
+    exercise = await lp.get_next_words_exercise(chat_id, lang, mode='learn')
     if exercise is None:
         await tel_send_message(bot, chat_id, interface['Could not create an exercise, please try again later'][uilang])
         print(f'Could not create an exercise "words" for data "learn".')
@@ -269,7 +266,7 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                 elif f'Next_{exercise.uid}' == udata:
                     await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
                     mode = 'learn' if isinstance(exercise, WordsExerciseLearn) else 'test'
-                    exercise = lp.get_next_words_exercise(chat_id, lang, mode)
+                    exercise = await lp.get_next_words_exercise(chat_id, lang, mode)
                     if exercise is None:
                         await tel_send_message(bot, chat_id, interface['Could not create an exercise, please try again later'][uilang])
                         print(f'Could not create an exercise "words" for data "{mode}".')
@@ -360,23 +357,28 @@ async def handle_request(update, context):
         elif chat_id in running_exercises.chat_ids:
             # user responded to an exercise
             exercise = running_exercises.current_exercise(chat_id)
+            if not exercise.is_responded:
 
-            if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
-            if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
+                exercise.is_responded = True
+                if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
 
-            await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
-            message, quality = await exercise.get_next_user_message(user_response=msg)
-            
-            buttons = None
-            if isinstance(exercise, WordsExerciseLearn):
-                buttons = [(exercise.uid, 'Discard'), (exercise.uid, 'I know this word')]
-            elif isinstance(exercise, WordsExerciseTest) or isinstance(exercise, FlashcardExercise):
-                lp.process_response(chat_id, exercise, quality=quality)
+                await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
+                message, quality = await exercise.get_next_user_message(user_response=msg)
+                
+                buttons = None
+                if isinstance(exercise, WordsExerciseLearn):
+                    buttons = [(exercise.uid, 'Discard'), (exercise.uid, 'I know this word')]
+                elif isinstance(exercise, WordsExerciseTest) or isinstance(exercise, FlashcardExercise):
+                    lp.process_response(chat_id, exercise, quality=quality)
+                    words_progress_db.save_progress()
+                    buttons = [(exercise.uid, 'Next')]
+
+                await tel_send_message(bot, chat_id, message, buttons=buttons)
                 words_progress_db.save_progress()
-                buttons = [(exercise.uid, 'Next')]
-
-            await tel_send_message(bot, chat_id, message, buttons=buttons)
-            words_progress_db.save_progress()
+            else:
+                running_exercises.pop_exercise(chat_id)
+                await tel_send_message(bot, chat_id, f'{interface["No exercises or commands are running, this message will be ignored"][uilang]}: {msg}')
+                print(f'No running commands or exercises, ignore user message: {msg}')
 
         else:
             await tel_send_message(bot, chat_id, f'{interface["No exercises or commands are running, this message will be ignored"][uilang]}: {msg}')
@@ -420,8 +422,15 @@ async def ping_users(context):
                 continue
             users_to_ping.append(dict(chat_id=chat_id, lang=user_data[chat_id]['language'], exercise=ping_schedule[0]))
     
-    for user in users_to_ping:
-        await ping_user(bot, user['chat_id'], user['lang'], 'words', user['exercise'])
+    try:
+        for user in users_to_ping:
+            await ping_user(bot, user['chat_id'], user['lang'], 'words', user['exercise'])
+    except Exception as e:
+        if chat_id in running_commands.chat_ids: running_commands.pop_command(chat_id)
+        if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
+        release_all_locks()
+        print(e)
+        # await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
 
 def nearest_start_time(ping_interval=15 * 60):
