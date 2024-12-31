@@ -115,6 +115,7 @@ class LearningPlan:
                 self.progress_db.add_word_to_progress(chat_id, exercise.word_id)
             item = self.progress_db.get_word_progress(chat_id, exercise.word_id)
             now = datetime.now()
+            item.last_review_date = now
             item.next_review_date = (now + timedelta(days=1)).date()
         elif quality is not None:
             # a word got tested
@@ -158,8 +159,7 @@ class LearningPlan:
         words_lang = words_df[words_df['lang'] == lang]
 
         all_seen_words = progress_df.loc[(progress_df['chat_id'] == chat_id)]
-        lang_seen_words = pd.merge(all_seen_words, words_lang, how='inner', left_on='word_id',
-                                        right_on='id', sort=False)
+        lang_seen_words = pd.merge(all_seen_words, words_lang, how='inner', left_on='word_id', right_on='id', sort=False)
 
         user_decks = self.decks_db.get_user_decks(chat_id, lang)
         user_words = []
@@ -222,7 +222,6 @@ class LearningPlan:
                 break
 
         custom_deck_id = self.decks_db.get_custom_deck_id(str(chat_id), lang)
-        self.decks_db.save_decks_db()
 
         for word in new_words:
             word_id = self.words_db.add_new_word(word, lang)
