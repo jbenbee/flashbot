@@ -54,10 +54,9 @@ class LearningPlan:
             return None
 
         progress_df = self.progress_db.get_progress_df()
-        progress_df = progress_df[progress_df['to_ignore'].isin([False, np.nan])]
 
         if mode in ['test', 'test_flashcard', 'test_translation'] or mode is None:
-
+            progress_df = progress_df[progress_df['to_ignore'].isin([False, np.nan])]
             words_progress = pd.merge(progress_df, deck_words_df, how='left', left_on='word_id', right_on='word_id', sort=False)
             user_words_progress = words_progress.loc[(words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id)]
 
@@ -74,7 +73,7 @@ class LearningPlan:
         else:
 
             user_words_progress = pd.merge(progress_df, deck_words_df, how='right', left_on='word_id', right_on='id', sort=False)
-            user_words_progress = user_words_progress.sort_values(by='next_review_date')
+            user_words_progress = user_words_progress[user_words_progress['to_ignore'].isin([False, np.nan])]
 
             if user_words_progress.shape[0] == 0:
                 return None
@@ -84,6 +83,7 @@ class LearningPlan:
             if unseen_words.shape[0] > 0:
                 row_item = unseen_words.iloc[0]
             else:
+                user_words_progress = user_words_progress.sort_values(by=['next_review_date', 'num_reps'])
                 row_item = user_words_progress.sample(n=1).iloc[0]
 
         user_level = self.user_config.get_user_data(chat_id)['level']
