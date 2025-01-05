@@ -60,7 +60,7 @@ async def handle_new_exercise(bot, chat_id, exercise):
             elif isinstance(exercise, WordsExerciseTest):
                 buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
             elif isinstance(exercise, FlashcardExercise):
-                buttons = [(exercise.uid, 'Correct answer')]
+                buttons = [(exercise.uid, 'Discard'), (exercise.uid, 'I know this word'), (exercise.uid, 'Correct answer')]
         except Exception as e:
             message = f'{interface["Error"][uilang]}: {e}'
             buttons = None
@@ -371,7 +371,7 @@ async def handle_request(update, context):
                 elif isinstance(exercise, WordsExerciseTest) or isinstance(exercise, FlashcardExercise):
                     lp.process_response(chat_id, exercise, quality=quality)
                     words_progress_db.save_progress()
-                    buttons = [(exercise.uid, 'Next')]
+                    buttons = [(exercise.uid, 'Discard'), (exercise.uid, 'I know this word'), (exercise.uid, 'Next')]
 
                 await tel_send_message(bot, chat_id, message, buttons=buttons)
                 words_progress_db.save_progress()
