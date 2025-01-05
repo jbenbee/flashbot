@@ -1,4 +1,2 @@
-Rate the following translation of the word or phrase "{{word_translation}}" into {{lang}} on a scale from 1 to 5.
-1 means the translation has major mistakes, 5 means that the translation is correct. Using transliteration is allowed and is not considered to be a mistake.
-Justify your score in one sentence.
-Translation: {{user_response}}
+You need to rate the student's answer to a flashcard exercise. The student was shown "{{word_translation}}" and was asked to translate it into {{lang}}. The correct answer to this exercise is "{{correct_answer}}". Rate the student's translation on a scale from 1 to 5, where 1 means the translation has major mistakes and 5 means that the translation is correct. Using transliteration is allowed and is not considered a mistake. Justify your score in one sentence.
+Student translation: {{user_response}}

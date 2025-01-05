@@ -264,7 +264,8 @@ class FlashcardExercise(Exercise):
             message_template = self.templates.get_template(self.uilang, self.lang, 'flashcard_query_2')
 
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-            query = template.render(lang=self.interface[self.lang][self.uilang], user_response=user_response, word_translation=self.assistant_responses[-1]['translation_word'])
+            query = template.render(lang=self.interface[self.lang][self.uilang], user_response=user_response,
+                                    word_translation=self.assistant_responses[-1]['translation_word'], correct_answer=self.word)
 
             validation_cls = FlashcardCorrectionSchema
             schema = validation_cls.model_json_schema()
