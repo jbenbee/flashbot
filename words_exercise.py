@@ -225,7 +225,7 @@ class FlashcardExercise(Exercise):
         self.model_substitute = os.getenv('MODEL_SUBSTITUTE')
 
     def correct_answer(self):
-        return self.word
+        return f'{self.word}\n\n{self.interface["Example"][self.uilang]}: {self.assistant_responses[0]["example"]}'
 
     async def get_next_user_message(self, user_response: Optional[str]):
         lang_tr = self.interface[self.lang][self.uilang]

@@ -113,5 +113,10 @@
   {
     "russian": "Вы уже ответили на это упражнение, это сообщение будет проигнорировано",
     "english": "The exercise has already been answered, this message will be ignored"
+  },
+  "Example":
+  {
+    "russian": "Пример",
+    "english": "Example"
   }
 }
