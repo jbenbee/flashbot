@@ -118,5 +118,15 @@
   {
     "russian": "Пример",
     "english": "Example"
+  },
+  "Easier":
+  {
+    "russian": "Легче",
+    "english": "Easier"
+  },
+  "Harder":
+  {
+    "russian": "Сложнее",
+    "english": "Harder"
   }
 }

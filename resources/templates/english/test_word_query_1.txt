@@ -1,4 +1,8 @@
-Show me 3 examples of using the {{lang}} word or phrase "{{word}}" at level of proficiency "{{level}}".
+Show me 5 examples of using the {{lang}} word (phrase) "{{word}}", following these rules:
+Each example should have a different difficulty level.
+Difficulty level 3 corresponds to level of proficiency "{{level}}".
+Difficulty level 2 is slightly easier than level 3 and level 1 is much easier than level 3.
+Difficulty level 4 is slihtly harder than 3 and level 5 is much harder than 4.
 Start examples with a verb, noun, name, adverb or pronoun.
 The word "important" must not appear under any circumstances.
 Name "Luca" must not appear under any circumstances.

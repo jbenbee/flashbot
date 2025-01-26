@@ -20,6 +20,3 @@ In addition, you can invoke a command to send you a new exercise whenever you wa
 5. Find chat_ids of all users who will use the bot.
 6. Specify user config in ```user_data/user_config.json``` for all users. For each user add an entry into ```<CH_USER_DATA_ROOT>/decks_db.csv``` as shown in ```resources/decks_db.csv```.
 7. ```pip install -r requirements.txt```
-
-```python main.py --webhook <webhook url>```
-

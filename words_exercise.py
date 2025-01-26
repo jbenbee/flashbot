@@ -11,6 +11,15 @@ from pydantic import BaseModel, Field, ValidationError
 from exercise import Exercise
 
 
+class ExampleTestSentenceSchema(BaseModel):
+    class Config:
+        extra = 'forbid'
+
+    example_sentence: str
+    sentence_translation: str
+    difficulty: int
+
+
 class ExampleSentenceSchema(BaseModel):
     class Config:
         extra = 'forbid'
@@ -20,7 +29,7 @@ class ExampleSentenceSchema(BaseModel):
 
 
 class WordTestSchema(BaseModel):
-    example_list: list[ExampleSentenceSchema]
+    example_list: list[ExampleTestSentenceSchema]
 
     class Config:
         extra = 'forbid'
@@ -118,6 +127,7 @@ class WordsExerciseTest(Exercise):
         self.hint_clicked = False
         self.correct_answer_clicked = False
         self.is_responded = False
+        self.difficulty = 3
 
         self.assistant_responses = []
         self.user_messages = []
@@ -126,7 +136,10 @@ class WordsExerciseTest(Exercise):
         self.model_substitute = os.getenv('MODEL_SUBSTITUTE')
 
     def correct_answer(self):
-        return self.assistant_responses[0]['answer']
+        return self.assistant_responses[0][self.difficulty - 1]['answer']
+    
+    def test_sentence(self):
+        return self.assistant_responses[0][self.difficulty - 1]['test']
 
     async def get_next_user_message(self, user_response: Optional[str]):
         lang_tr = self.interface[self.lang][self.uilang]
@@ -152,20 +165,16 @@ class WordsExerciseTest(Exercise):
                                                         model_substitute=self.model_substitute, uilang=self.uilang,
                                                         response_format=response_format, validation_cls=validation_cls)
             
-            examples = assistant_response.example_list
+            examples = sorted(assistant_response.example_list, key=lambda x: x.difficulty)
+            examples = [dict(test=item.sentence_translation, answer=item.example_sentence) for item in examples]
 
-            # choose randomly an example
-            ridx = random.randint(0, len(examples) - 1)
-            sentence = examples[ridx]
+            self.difficulty = 3
 
-            answer_sentence = sentence.example_sentence
-            test_sentence = sentence.sentence_translation
-
-            self.assistant_responses.append(dict(test=test_sentence, answer=answer_sentence))
+            self.assistant_responses.append(examples)
 
             message_template = self.templates.get_template(self.uilang, self.lang, 'test_word_user_message_1')
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-            message = template.render(lang=lang_tr, test_sentence=test_sentence)
+            message = template.render(lang=lang_tr, test_sentence=self.test_sentence())
             quality = None
             
         else:
@@ -175,7 +184,7 @@ class WordsExerciseTest(Exercise):
 
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
             query = template.render(lang=self.interface[self.lang][self.uilang],
-                                    user_response=user_response, sentence=self.assistant_responses[0]['test'],
+                                    user_response=user_response, sentence=self.test_sentence(),
                                     word=self.word)
 
             validation_cls = ResponseCorrectionSchema
@@ -201,6 +210,20 @@ class WordsExerciseTest(Exercise):
             quality = assistant_response.translation_score
 
         return message, quality
+    
+
+    def change_difficulty(self, easier: bool) -> None:
+        lang_tr = self.interface[self.lang][self.uilang]
+
+        if easier:
+            self.difficulty = max(1, self.difficulty - 1)
+        else:
+            self.difficulty = min(5, self.difficulty + 1)
+
+        message_template = self.templates.get_template(self.uilang, self.lang, 'test_word_user_message_1')
+        template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+        message = template.render(lang=lang_tr, test_sentence=self.test_sentence())
+        return message
 
 
 class FlashcardExercise(Exercise):

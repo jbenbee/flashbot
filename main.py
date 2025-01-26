@@ -52,7 +52,7 @@ async def handle_new_exercise(bot, chat_id, exercise):
             words_progress_db.save_progress()
 
         try:
-            if not isinstance(exercise, WordsExerciseLearn) and "show_words_due" in user_data['keys'] and user_data['show_words_due']:
+            if not isinstance(exercise, WordsExerciseLearn) and "show_words_due" in user_data.keys() and user_data['show_words_due']:
                 words_due = lp.get_due_today(chat_id, lang)
 
                 message_template = templates.get_template(uilang, lang, 'words_due')
@@ -70,7 +70,7 @@ async def handle_new_exercise(bot, chat_id, exercise):
             if isinstance(exercise, WordsExerciseLearn):
                 buttons = [(exercise.uid, 'Next'), (exercise.uid, 'Discard'), (exercise.uid, 'I know this word'), (exercise.uid, 'Pronounce')]
             elif isinstance(exercise, WordsExerciseTest):
-                buttons = [(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
+                buttons = [(exercise.uid, 'Easier'), (exercise.uid, 'Harder'), (exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')]
             elif isinstance(exercise, FlashcardExercise):
                 buttons = [(exercise.uid, 'Discard'), (exercise.uid, 'I know this word'), (exercise.uid, 'Correct answer')]
         except Exception as e:
@@ -290,6 +290,27 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                         print(f'Could not create an exercise "words" for data "{mode}".')
                     else:
                         await handle_new_exercise(bot, chat_id, exercise)
+                elif f'Easier_{exercise.uid}' == udata:
+                    await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
+                    message = exercise.change_difficulty(easier=True)
+                    buttons = []
+                    if exercise.difficulty > 1:
+                        buttons.append((exercise.uid, 'Easier'))
+                    if exercise.difficulty < 5:
+                        buttons.append((exercise.uid, 'Harder'))
+                    buttons.extend([(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')])
+                    await tel_send_message(bot, chat_id, message, buttons=buttons)
+
+                elif f'Harder_{exercise.uid}' == udata:
+                    await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
+                    message = exercise.change_difficulty(easier=False)
+                    buttons = []
+                    if exercise.difficulty > 1:
+                        buttons.append((exercise.uid, 'Easier'))
+                    if exercise.difficulty < 5:
+                        buttons.append((exercise.uid, 'Harder'))
+                    buttons.extend([(exercise.uid, 'Hint'), (exercise.uid, 'Correct answer'), (exercise.uid, 'Answer audio')])
+                    await tel_send_message(bot, chat_id, message, buttons=buttons)
                 else:
                     raise ValueError(f'Unknown callback data {udata}')
             else:
@@ -544,7 +565,7 @@ if __name__ == '__main__':
     shared_objs = [user_config, words_db, words_progress_db, decks_db, running_exercises, running_commands]
 
     # list of known exercise buttons
-    exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next', 'Pronounce']
+    exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next', 'Pronounce', 'Easier', 'Harder']
 
     apps = []
     lang_map = {}
