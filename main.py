@@ -51,8 +51,20 @@ async def handle_new_exercise(bot, chat_id, exercise):
             lp.process_response(chat_id, exercise, quality=None)
             words_progress_db.save_progress()
 
-        try:        
+        try:
+            if not isinstance(exercise, WordsExerciseLearn) and "show_words_due" in user_data['keys'] and user_data['show_words_due']:
+                words_due = lp.get_due_today(chat_id, lang)
+
+                message_template = templates.get_template(uilang, lang, 'words_due')
+                template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+                due_message = template.render(n_words=len(words_due)).strip()
+                due_message = f'{due_message}\n\n---------------\n\n'
+            else:
+                due_message = ''
+
             message, _ = await exercise.get_next_user_message(user_response=None)
+
+            message = f'{due_message}{message}'
 
             buttons = None
             if isinstance(exercise, WordsExerciseLearn):
@@ -426,7 +438,7 @@ async def ping_users(context):
             if len(ping_schedule) == 0:
                 continue
             users_to_ping.append(dict(chat_id=chat_id, lang=user_data[chat_id]['language'], exercise=ping_schedule[0]))
-    
+
     try:
         for user in users_to_ping:
             await ping_user(bot, user['chat_id'], user['lang'], 'words', user['exercise'])
@@ -435,7 +447,6 @@ async def ping_users(context):
         if chat_id in running_exercises.chat_ids: running_exercises.pop_exercise(chat_id)
         release_all_locks()
         print(e)
-        # await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
 
 def nearest_start_time(ping_interval=15 * 60):

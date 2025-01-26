@@ -5,6 +5,7 @@
     "timezone": "Europe/Berlin",
     "level": "B1",
     "max_tokens": 600,
+    "show_words_due": 1,
     "exercise_types": ["words"],
     "schedule": {
       "words": {

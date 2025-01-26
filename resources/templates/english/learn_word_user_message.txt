@@ -1,5 +1,4 @@
 🔍 **Learning Word:** _{{word}}_
-📊 **Repetitions:** {{num_reps}}
 
 📚 **Example Usage:**
 {% for entry in examples %}

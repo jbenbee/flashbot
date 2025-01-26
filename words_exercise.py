@@ -100,7 +100,7 @@ class WordsExerciseLearn(Exercise):
         message_template = self.templates.get_template(self.uilang, self.lang, 'learn_word_user_message')
         examples = [(entry.example_sentence, entry.sentence_translation) for entry in assistant_response.example_list]
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-        message = template.render(word=self.word, num_reps=self.num_reps, examples=examples, conjugations=assistant_response.conjugations)
+        message = template.render(word=self.word, examples=examples, conjugations=assistant_response.conjugations)
         return message, None
 
 

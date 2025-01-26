@@ -105,6 +105,39 @@ class LearningPlan:
 
         return exercise
 
+    def get_due_today(self, chat_id: str, lang: str) -> List[str]:
+
+        now = datetime.now().date()
+
+        words_df = self.words_db.get_words_df()
+        deck_words_df = self.decks_db.get_deck_word_df()
+
+        deck_words_df = pd.merge(words_df, deck_words_df, how='inner', left_on='id', right_on='word_id', sort=False)
+        user_decks = self.decks_db.get_user_decks(chat_id, lang)
+        deck_words_df = deck_words_df[deck_words_df['deck_id'].isin(user_decks)]
+
+        if deck_words_df.shape[0] == 0:
+            return None
+
+        progress_df = self.progress_db.get_progress_df()
+
+        progress_df = progress_df[progress_df['to_ignore'].isin([False, np.nan])]
+        words_progress = pd.merge(progress_df, deck_words_df, how='left', left_on='word_id', right_on='word_id', sort=False)
+        user_words_progress = words_progress.loc[(words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id)]
+
+        if user_words_progress.shape[0] == 0:
+            return None
+    
+        user_words_progress = user_words_progress.sort_values(by='next_review_date')
+        to_review_mask = ((user_words_progress['next_review_date'] <= now) | user_words_progress['next_review_date'].isna())
+        if to_review_mask.sum() > 0:
+            to_review_words = user_words_progress[to_review_mask]['word'].to_list()
+        else:
+            to_review_words = []
+
+        return to_review_words
+
+
     def process_hint(self, chat_id: int, exercise: Exercise) -> None:
         item = self.progress_db.get_word_progress(chat_id, exercise.word_id)
         item.e_factor = self.calculate_e_factor(item, 2)  # lower e-factor

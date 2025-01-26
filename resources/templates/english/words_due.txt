@@ -1,0 +1,9 @@
+{% if n_words >= 15 %}
+📚 **Words due today:** *{{ n_words }}*
+{% elif n_words >= 10 %}
+✍️ **Words due today:** *{{ n_words }}*
+{% elif n_words >= 5 %}
+🔥 **Words due today:** *{{ n_words }}*
+{% else %}
+✅ **Last word due today!** 🎉
+{% endif %}
