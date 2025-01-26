@@ -81,7 +81,7 @@ class LearningPlan:
             unseen_words = user_words_progress[user_words_progress['next_review_date'].isna()]
 
             if unseen_words.shape[0] > 0:
-                row_item = unseen_words.iloc[0]
+                row_item = unseen_words.sample(n=1).iloc[0]
             else:
                 user_words_progress = user_words_progress.sort_values(by=['next_review_date', 'num_reps'])
                 row_item = user_words_progress.sample(n=1).iloc[0]
