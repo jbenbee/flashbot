@@ -105,6 +105,16 @@ class LearningPlan:
 
         return exercise
 
+    def process_hint(self, chat_id: int, exercise: Exercise) -> None:
+        item = self.progress_db.get_word_progress(chat_id, exercise.word_id)
+        item.e_factor = self.calculate_e_factor(item, 2)  # lower e-factor
+        self.progress_db.set_word_progress(chat_id, exercise.word_id, item)
+
+    def process_correct_answer(self, chat_id: int, exercise: Exercise) -> None:
+        item = self.progress_db.get_word_progress(chat_id, exercise.word_id)
+        item.e_factor = self.calculate_e_factor(item, 1)  # lower e-factor
+        self.progress_db.set_word_progress(chat_id, exercise.word_id, item)
+
     def process_response(self, chat_id: int, exercise: Exercise, quality: Optional[int]) -> None:
 
         item = self.progress_db.get_word_progress(chat_id, exercise.word_id)
@@ -126,8 +136,6 @@ class LearningPlan:
                 quality = int(quality * 0.85)
             elif exercise.correct_answer_clicked:
                 quality = int(quality * 0.6)
-
-            item.e_factor = self.calculate_e_factor(item, quality)
 
             if quality < 3:
                 item.num_reps = 0
