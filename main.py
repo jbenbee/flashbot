@@ -234,8 +234,9 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                     running_exercise.hint_clicked = True
                     running_exercises.add_exercise(chat_id, running_exercise)
 
-                    lp.process_hint(chat_id, running_exercise)
-                    words_progress_db.save_progress()
+                    if not exercise.is_responded:
+                        lp.process_hint(chat_id, running_exercise)
+                        words_progress_db.save_progress()
 
                     message_template = templates.get_template(uilang, lang, 'hint_message')
                     template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
@@ -247,9 +248,9 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                     running_exercise = running_exercises.pop_exercise(chat_id)
                     running_exercise.correct_answer_clicked = True
                     running_exercises.add_exercise(chat_id, running_exercise)
-
-                    lp.process_correct_answer(chat_id, running_exercise)
-                    words_progress_db.save_progress()
+                    if not exercise.is_responded:
+                        lp.process_correct_answer(chat_id, running_exercise)
+                        words_progress_db.save_progress()
 
                     await tel_send_message(bot, chat_id, exercise.correct_answer())
                 elif f'I know this word_{exercise.uid}' == udata:
