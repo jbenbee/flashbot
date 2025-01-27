@@ -140,12 +140,16 @@ class LearningPlan:
 
     def process_hint(self, chat_id: int, exercise: Exercise) -> None:
         item = self.progress_db.get_word_progress(chat_id, exercise.word_id)
-        item.e_factor = self.calculate_e_factor(item, 2)  # lower e-factor
+        item.num_reps = 1
+        item.last_interval = max(math.floor(item.last_interval / 2), 0)
+        item.next_review_date = (datetime.now() + timedelta(days=1)).date()
         self.progress_db.set_word_progress(chat_id, exercise.word_id, item)
 
     def process_correct_answer(self, chat_id: int, exercise: Exercise) -> None:
         item = self.progress_db.get_word_progress(chat_id, exercise.word_id)
-        item.e_factor = self.calculate_e_factor(item, 1)  # lower e-factor
+        item.num_reps = 1
+        item.last_interval = 0
+        item.next_review_date = (datetime.now() + timedelta(days=1)).date()
         self.progress_db.set_word_progress(chat_id, exercise.word_id, item)
 
     def process_response(self, chat_id: int, exercise: Exercise, quality: Optional[int]) -> None:
@@ -162,16 +166,18 @@ class LearningPlan:
             item.next_review_date = (now + timedelta(days=1)).date()
         elif quality is not None:
             # a word got tested
+
+            if exercise.correct_answer_clicked or exercise.hint_clicked:
+                # last interval and next review date are already updated
+                return
+
             if not 0 <= quality <= 5:
                 raise ValueError("Quality must be between 0 and 5")
 
-            if exercise.hint_clicked:
-                quality = int(quality * 0.85)
-            elif exercise.correct_answer_clicked:
-                quality = int(quality * 0.6)
+            item.e_factor = self.calculate_e_factor(item, quality)
 
             if quality < 3:
-                item.num_reps = 0
+                item.num_reps = 1
                 item.last_interval = 0
             else:
                 item.num_reps += 1
