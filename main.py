@@ -58,7 +58,8 @@ async def handle_new_exercise(bot, chat_id, exercise):
                 message_template = templates.get_template(uilang, lang, 'words_due')
                 template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
                 due_message = template.render(n_words=len(words_due)).strip()
-                due_message = f'{due_message}\n\n---------------\n\n'
+                if len(words_due) > 0:
+                    due_message = f'{due_message}\n\n---------------\n\n'
             else:
                 due_message = ''
 
