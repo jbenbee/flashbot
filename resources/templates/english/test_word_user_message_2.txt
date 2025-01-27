@@ -20,3 +20,6 @@
 
 ✅ **Corrected Translation:**  
 _{{corrected_translation}}_
+
+✳️ **Alternative Translation:**  
+_{{original_translation}}_

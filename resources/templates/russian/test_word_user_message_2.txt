@@ -20,3 +20,6 @@
 
 ✅ **Правильный ответ:**  
 _{{corrected_translation}}_
+
+✳️ **Альтернативный ответ:**  
+_{{original_translation}}_

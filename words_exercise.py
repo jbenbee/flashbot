@@ -206,7 +206,8 @@ class WordsExerciseTest(Exercise):
             message = template.render(score=assistant_response.translation_score,
                                   justification=assistant_response.score_justification,
                                   explanation=assistant_response.mistakes_explanation,
-                                  corrected_translation=assistant_response.corrected_translation)
+                                  corrected_translation=assistant_response.corrected_translation,
+                                  original_translation=self.correct_answer())
             quality = assistant_response.translation_score
 
         return message, quality
