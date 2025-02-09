@@ -54,8 +54,22 @@ class LearningPlan:
             return None
 
         progress_df = self.progress_db.get_progress_df()
+        last_review_date = pd.to_datetime(progress_df['last_review_date']).dt.date
+        n_done_today = progress_df.loc[(progress_df['chat_id'] == chat_id) & (last_review_date == now)].shape[0]
+        n_tests_done_today = progress_df.loc[(progress_df['chat_id'] == chat_id) & (last_review_date == now) & (progress_df['num_reps'] > 0)].shape[0]
+        n_flashcards = self.user_config.get_user_data(chat_id)['n_flashcards']
+        if mode is None:
+            if n_done_today == 0:
+                mode  = 'learn'
+            elif n_tests_done_today % n_flashcards == 0:
+                mode = 'test_translation'
+            else:
+                mode = 'test_flashcard'
 
-        if mode in ['test', 'test_flashcard', 'test_translation'] or mode is None:
+        if mode == 'test':
+            mode = 'test_translation' if (n_tests_done_today > 0) and (n_tests_done_today % n_flashcards == 0) else 'test_flashcard'
+
+        if mode in ['test_flashcard', 'test_translation']:
             progress_df = progress_df[progress_df['to_ignore'].isin([False, np.nan])]
             words_progress = pd.merge(progress_df, deck_words_df, how='left', left_on='word_id', right_on='word_id', sort=False)
             user_words_progress = words_progress.loc[(words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id)]
@@ -88,10 +102,7 @@ class LearningPlan:
 
         user_level = self.user_config.get_user_data(chat_id)['level']
         uilang = self.user_config.get_user_ui_lang(chat_id)
-        
-        if 'test' == mode:
-            mode = 'test_translation' if row_item['num_reps'] >= 3 else 'test_flashcard'
-        
+                
         if 'test_flashcard' == mode:
             exercise = FlashcardExercise(word=row_item['word'], word_id=row_item['id'].item(), lang=lang, uilang=uilang, level=user_level,
                                          interface=self.interface, templates=self.templates)
@@ -142,6 +153,7 @@ class LearningPlan:
         item = self.progress_db.get_word_progress(chat_id, exercise.word_id)
         item.num_reps = 1
         item.last_interval = max(math.floor(item.last_interval / 2), 0)
+        item.last_review_date = datetime.now()
         item.next_review_date = (datetime.now() + timedelta(days=1)).date()
         self.progress_db.set_word_progress(chat_id, exercise.word_id, item)
 
@@ -149,6 +161,7 @@ class LearningPlan:
         item = self.progress_db.get_word_progress(chat_id, exercise.word_id)
         item.num_reps = 1
         item.last_interval = 0
+        item.last_review_date = datetime.now()
         item.next_review_date = (datetime.now() + timedelta(days=1)).date()
         self.progress_db.set_word_progress(chat_id, exercise.word_id, item)
 

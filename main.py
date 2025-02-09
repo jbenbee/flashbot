@@ -39,6 +39,12 @@ app = Flask(__name__)
 BOT_TOKEN_ENG = os.getenv('BOT_TOKEN_ENG')
 BOT_TOKEN_RU = os.getenv('BOT_TOKEN_RU')
 
+BOT_TOKENS = [BOT_TOKEN_ENG]
+BOT_LANGS = ['english']
+if BOT_TOKEN_RU is not None:
+    BOT_TOKENS.append(BOT_TOKEN_RU)
+    BOT_LANGS.append('russian')
+
 
 async def handle_new_exercise(bot, chat_id, exercise):
     try:
@@ -571,7 +577,8 @@ if __name__ == '__main__':
 
     apps = []
     lang_map = {}
-    for bidx, (token, lang) in enumerate(zip([BOT_TOKEN_ENG, BOT_TOKEN_RU], ['english', 'russian'])):
+
+    for bidx, (token, lang) in enumerate(zip(BOT_TOKENS, BOT_LANGS)):
         application = Application.builder().token(token).build()
 
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_request))
