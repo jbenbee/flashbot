@@ -57,7 +57,8 @@ class LearningPlan:
         last_review_date = pd.to_datetime(progress_df['last_review_date']).dt.date
         n_done_today = progress_df.loc[(progress_df['chat_id'] == chat_id) & (last_review_date == now)].shape[0]
         n_tests_done_today = progress_df.loc[(progress_df['chat_id'] == chat_id) & (last_review_date == now) & (progress_df['num_reps'] > 0)].shape[0]
-        n_flashcards = self.user_config.get_user_data(chat_id)['n_flashcards']
+        user_data = self.user_config.get_user_data(chat_id)
+        n_flashcards = user_data.get('n_flashcards', 5)
         if mode is None:
             if n_done_today == 0:
                 mode  = 'learn'
