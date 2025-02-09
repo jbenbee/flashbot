@@ -16,4 +16,7 @@
 {% if correct_answer %}
 ✅ **Correct Answer:**  
 _{{correct_answer}}_
+
 {% endif %}
+📖 **Context Translation:** 
+_{{context_translation}}_
