@@ -86,6 +86,12 @@ class WordsProgressDB:
         self.progress_df.loc[mask, 'last_interval'] = item.last_interval
         self._lock.release()
 
+    def remove_progress(self, chat_id, word_ids):
+        self._lock.acquire()
+        mask = (self.progress_df['chat_id'] == chat_id) & (self.progress_df['word_id'].isin(word_ids))
+        self.progress_df = self.progress_df[~mask]
+        self._lock.release()
+
     def release_lock(self):
         if self._lock.locked():
             self._lock.release()

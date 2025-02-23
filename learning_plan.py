@@ -70,6 +70,16 @@ class LearningPlan:
         if mode == 'test':
             mode = 'test_translation' if (n_tests_done_today > 0) and (n_tests_done_today % n_flashcards == 0) else 'test_flashcard'
 
+        # reset progress on words that are long due
+        words_progress = pd.merge(progress_df, deck_words_df, how='left', left_on='word_id', right_on='word_id', sort=False)
+        user_not_ignored_mask = ((words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id) & words_progress['to_ignore'].isin([False, np.nan]))
+        long_due_today_mask = user_not_ignored_mask & ((words_progress['next_review_date'] <= now - timedelta(days=3)) | words_progress['next_review_date'].isna())
+        long_due_words = words_progress[long_due_today_mask]['word_id'].to_list()
+        if len(long_due_words) > 0:
+            self.progress_db.remove_progress(chat_id, long_due_words)
+        self.progress_db.save_progress()
+        progress_df = self.progress_db.get_progress_df()
+
         if mode in ['test_flashcard', 'test_translation']:
             progress_df = progress_df[progress_df['to_ignore'].isin([False, np.nan])]
             words_progress = pd.merge(progress_df, deck_words_df, how='left', left_on='word_id', right_on='word_id', sort=False)
@@ -77,7 +87,7 @@ class LearningPlan:
 
             if user_words_progress.shape[0] == 0:
                 return None
-
+            
             user_words_progress = user_words_progress.sort_values(by='next_review_date')
             to_review_mask = ((user_words_progress['next_review_date'] <= now) | user_words_progress['next_review_date'].isna())
             if to_review_mask.sum() > 0:
