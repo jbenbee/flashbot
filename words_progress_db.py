@@ -33,9 +33,9 @@ class WordsProgressDB:
 
     def add_word_to_progress(self, chat_id, word_id):
         self._lock.acquire()
-        self.progress_df.loc[len(self.progress_df)] = \
-            {'chat_id': chat_id, 'word_id': word_id, 'num_reps': 0.0, 'to_ignore': False,
-             'e_factor': 2.5, 'last_interval': 0, 'last_review_date': None, 'next_review_date': None}
+        new_row = pd.DataFrame([{'chat_id': chat_id, 'word_id': word_id, 'num_reps': 0.0, 'to_ignore': False,
+             'e_factor': 2.5, 'last_interval': 0, 'last_review_date': None, 'next_review_date': None}])[self.progress_df.columns].astype(self.progress_df.dtypes)
+        self.progress_df = pd.concat([self.progress_df, new_row], ignore_index=True)
         self._lock.release()
 
     def ignore_word(self, chat_id, word_id):
