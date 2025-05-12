@@ -534,7 +534,7 @@ async def run_apps(apps):
 
 if __name__ == '__main__':
 
-    running_exercises_file = 'running_exercise.jb'
+    running_exercises_file = 'running_exercise.jb' 
     running_activities = RunningActivities(running_exercises_file)
 
     user_data_root = os.getenv('CH_USER_DATA_ROOT')
