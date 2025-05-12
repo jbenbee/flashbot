@@ -75,11 +75,13 @@ async def handle_new_exercise(bot, chat_id, exercise):
 
             buttons = None
             if isinstance(exercise, WordsExerciseLearn):
-                buttons = ['Next', 'Discard', 'I know this word', 'Pronounce']
+                # buttons = ['Next', 'Discard', 'I know this word', 'Pronounce']
+                buttons = ['Next', 'Discard', 'Pronounce']
             elif isinstance(exercise, WordsExerciseTest):
                 buttons = ['Easier', 'Harder', 'Hint', 'Correct answer', 'Answer audio']
             elif isinstance(exercise, FlashcardExercise):
-                buttons = ['Discard', 'I know this word', 'Correct answer']
+                # buttons = ['Discard', 'I know this word', 'Correct answer']
+                buttons = ['Discard', 'Correct answer']
         except Exception as e:
             message = f'{interface["Error"][uilang]}: {e}'
             buttons = None
@@ -250,24 +252,24 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                     words_progress_db.save_progress()
 
                 await tel_send_message(bot, chat_id, exercise.correct_answer())
-            elif f'I know this word' == udata:
-                lp.set_word_easy(chat_id, exercise.word_id)
-                words_progress_db.save_progress()
+            # elif f'I know this word' == udata:
+            #     lp.set_word_easy(chat_id, exercise.word_id)
+            #     words_progress_db.save_progress()
 
-                message_template = templates.get_template(uilang, lang, 'know_word_message')
-                template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-                mes = template.render(word=exercise.word)
-                await tel_send_message(bot, chat_id, mes)
+            #     message_template = templates.get_template(uilang, lang, 'know_word_message')
+            #     template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+            #     mes = template.render(word=exercise.word)
+            #     await tel_send_message(bot, chat_id, mes)
 
-                progress_df = words_progress_db.get_progress_df()
-                n_seen_words = progress_df[progress_df['chat_id'] == chat_id].shape[0]
+            #     progress_df = words_progress_db.get_progress_df()
+            #     n_seen_words = progress_df[progress_df['chat_id'] == chat_id].shape[0]
 
-                if n_seen_words % 10 == 0:
+            #     if n_seen_words % 10 == 0:
 
-                    message_template = templates.get_template(uilang, lang, 'congrats_learn_message')
-                    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-                    mes = template.render(n_seen_words=n_seen_words)
-                    await tel_send_message(bot, chat_id, mes)
+            #         message_template = templates.get_template(uilang, lang, 'congrats_learn_message')
+            #         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+            #         mes = template.render(n_seen_words=n_seen_words)
+            #         await tel_send_message(bot, chat_id, mes)
 
             elif f'Answer audio' == udata:
                 file_path = f'{chat_id}_{exercise.uid}.mp3'
@@ -397,11 +399,13 @@ async def handle_request(update, context):
                 
                 buttons = None
                 if isinstance(exercise, WordsExerciseLearn):
-                    buttons = ['Discard', 'I know this word']
+                    # buttons = ['Discard', 'I know this word']
+                    buttons = ['Discard']
                 elif isinstance(exercise, WordsExerciseTest) or isinstance(exercise, FlashcardExercise):
                     lp.process_response(chat_id, exercise, quality=quality)
                     words_progress_db.save_progress()
-                    buttons = ['Discard', 'I know this word', 'Next']
+                    # buttons = ['Discard', 'I know this word', 'Next']
+                    buttons = ['Discard', 'Next']
 
                 await tel_send_message(bot, chat_id, message, buttons=buttons)
                 words_progress_db.save_progress()
@@ -559,7 +563,8 @@ if __name__ == '__main__':
     shared_objs = [user_config, words_db, words_progress_db, decks_db, running_activities]
 
     # list of known exercise buttons
-    exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next', 'Pronounce', 'Easier', 'Harder']
+    # exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next', 'Pronounce', 'Easier', 'Harder']
+    exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'Answer audio', 'Next', 'Pronounce', 'Easier', 'Harder']
 
     apps = []
     lang_map = {}

@@ -22,6 +22,7 @@ class LearningPlan:
         self.user_config = user_config
         self.interface = interface
         self.templates = templates
+        self.max_n_reps = 100  # a word will not be tested more than this many times
     
     def calculate_interval(self, item: Item) -> int:
         """Returns number of days until the next review."""
@@ -73,7 +74,7 @@ class LearningPlan:
         # reset progress on words that are long due
         words_progress = pd.merge(progress_df, deck_words_df, how='left', left_on='word_id', right_on='word_id', sort=False)
         user_not_ignored_mask = ((words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id) & words_progress['to_ignore'].isin([False, np.nan]))
-        long_due_today_mask = user_not_ignored_mask & ((words_progress['next_review_date'] <= now - timedelta(days=3)) | words_progress['next_review_date'].isna())
+        long_due_today_mask = user_not_ignored_mask & ((words_progress['next_review_date'] <= now - timedelta(days=10)) | words_progress['next_review_date'].isna()) & (words_progress['num_reps'] < self.max_n_reps)
         long_due_words = words_progress[long_due_today_mask]['word_id'].to_list()
         if len(long_due_words) > 0:
             self.progress_db.remove_progress(chat_id, long_due_words)
@@ -89,7 +90,7 @@ class LearningPlan:
                 return None
             
             user_words_progress = user_words_progress.sort_values(by='next_review_date')
-            to_review_mask = ((user_words_progress['next_review_date'] <= now) | user_words_progress['next_review_date'].isna())
+            to_review_mask = (((user_words_progress['next_review_date'] <= now) | user_words_progress['next_review_date'].isna()) & (user_words_progress['num_reps'] < self.max_n_reps))
             if to_review_mask.sum() > 0:
                 to_review_words = user_words_progress[to_review_mask]
                 row_item = to_review_words.iloc[0]
@@ -151,7 +152,7 @@ class LearningPlan:
             return None
     
         user_words_progress = user_words_progress.sort_values(by='next_review_date')
-        to_review_mask = ((user_words_progress['next_review_date'] <= now) | user_words_progress['next_review_date'].isna())
+        to_review_mask = (((user_words_progress['next_review_date'] <= now) | user_words_progress['next_review_date'].isna()) & (user_words_progress['num_reps'] < self.max_n_reps))
         if to_review_mask.sum() > 0:
             to_review_words = user_words_progress[to_review_mask]['word'].to_list()
         else:
@@ -207,21 +208,21 @@ class LearningPlan:
                 item.num_reps += 1
             
             new_interval = self.calculate_interval(item)
-            item.last_interval = new_interval
+            item.last_interval += new_interval
             now = datetime.now()
             item.last_review_date = now
             item.next_review_date = (now + timedelta(days=new_interval)).date()
 
         self.progress_db.set_word_progress(chat_id, exercise.word_id, item)
 
-    def set_word_easy(self, chat_id: int, word_id: int) -> None:
-        item = self.progress_db.get_word_progress(chat_id, word_id)
-        if item is None:
-            raise ValueError(f'Word {word_id} is not found.')
-        item.last_interval = 30
-        new_interval = self.calculate_interval(item)
-        item.next_review_date = (datetime.now() + timedelta(days=new_interval)).date()
-        self.progress_db.set_word_progress(chat_id, word_id, item)
+    # def set_word_easy(self, chat_id: int, word_id: int) -> None:
+    #     item = self.progress_db.get_word_progress(chat_id, word_id)
+    #     if item is None:
+    #         raise ValueError(f'Word {word_id} is not found.')
+    #     item.last_interval = 30
+    #     new_interval = self.calculate_interval(item)
+    #     item.next_review_date = (datetime.now() + timedelta(days=new_interval)).date()
+    #     self.progress_db.set_word_progress(chat_id, word_id, item)
 
     def has_enough_words(self, chat_id, lang):
         progress_df = self.progress_db.get_progress_df()
