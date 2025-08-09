@@ -60,9 +60,25 @@ class LearningPlan:
         n_tests_done_today = progress_df.loc[(progress_df['chat_id'] == chat_id) & (last_review_date == now) & (progress_df['num_reps'] > 0)].shape[0]
         user_data = self.user_config.get_user_data(chat_id)
         n_flashcards = user_data.get('n_flashcards', 5)
+
+        # reset progress on words that are long due
+        words_progress = pd.merge(progress_df, deck_words_df, how='left', left_on='word_id', right_on='word_id', sort=False)
+        user_not_ignored_mask = ((words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id) & words_progress['to_ignore'].isin([False, np.nan]))
+        long_due_today_mask = user_not_ignored_mask & ((words_progress['next_review_date'] <= now - timedelta(days=5)) | words_progress['next_review_date'].isna()) & (words_progress['num_reps'] < self.max_n_reps)
+        long_due_words = words_progress[long_due_today_mask]['word_id'].to_list()
+        if len(long_due_words) > 0:
+            self.progress_db.remove_progress(chat_id, long_due_words)
+        self.progress_db.save_progress()
+        progress_df = self.progress_db.get_progress_df()
+
+        if mode == 'learn' and len(long_due_words) > 0:
+            mode = 'test_flashcard'
+
         if mode is None:
-            if n_done_today == 0:
+            if n_done_today == 0 and len(long_due_words) == 0:
                 mode  = 'learn'
+            elif n_done_today == 0 and len(long_due_words) > 0:
+                mode  = 'test_flashcard'
             elif n_tests_done_today % n_flashcards == 0:
                 mode = 'test_translation'
             else:
@@ -70,16 +86,6 @@ class LearningPlan:
 
         if mode == 'test':
             mode = 'test_translation' if (n_tests_done_today > 0) and (n_tests_done_today % n_flashcards == 0) else 'test_flashcard'
-
-        # reset progress on words that are long due
-        words_progress = pd.merge(progress_df, deck_words_df, how='left', left_on='word_id', right_on='word_id', sort=False)
-        user_not_ignored_mask = ((words_progress['lang'] == lang.lower()) & (words_progress['chat_id'] == chat_id) & words_progress['to_ignore'].isin([False, np.nan]))
-        long_due_today_mask = user_not_ignored_mask & ((words_progress['next_review_date'] <= now - timedelta(days=10)) | words_progress['next_review_date'].isna()) & (words_progress['num_reps'] < self.max_n_reps)
-        long_due_words = words_progress[long_due_today_mask]['word_id'].to_list()
-        if len(long_due_words) > 0:
-            self.progress_db.remove_progress(chat_id, long_due_words)
-        self.progress_db.save_progress()
-        progress_df = self.progress_db.get_progress_df()
 
         if mode in ['test_flashcard', 'test_translation']:
             progress_df = progress_df[progress_df['to_ignore'].isin([False, np.nan])]
