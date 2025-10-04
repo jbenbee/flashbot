@@ -1,8 +1,8 @@
-🔍 **Учим слово:** _{{word}}_
+🔍 **Учим слово:** _{{word}}_ {% if pronunciation %}({{pronunciation}}){%endif%}
 
 📚 **Примеры использования:**
 {% for entry in examples %}
-- _{{entry[0]}}_ ({{entry[1]}})
+- _{{entry.example_sentence}}_ - {{entry.sentence_translation}} {% if entry.pronunciation %}({{entry.pronunciation}}){%endif%}
 {% endfor %}
 
 {% if conjugations %}

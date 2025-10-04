@@ -1,2 +1,3 @@
 Show me 3 examples of how to use the {{lang}} {{word_phrase}} "{{word}}"{% if meaning %} ({{meaning}}){% endif %} with translation in english.
+For words in non-latin alphabets (japanese, chinese, etc), also show transliteration of the word and the examples in latin alphabet.
 If the word is a verb, show its conjugations in present tense for all subjects.

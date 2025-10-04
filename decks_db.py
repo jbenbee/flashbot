@@ -52,6 +52,9 @@ class DecksDB:
 
     def get_custom_deck_id(self, chat_id, lang):
         self._lock.acquire()
+        if len(self.decks.loc[(self.decks['owner'] == str(chat_id)) & (self.decks['language'] == lang) & (self.decks['name'] == 'custom'), 'id']) == 0:
+            self._lock.release()
+            return None
         res = self.decks.loc[(self.decks['owner'] == str(chat_id)) & (self.decks['language'] == lang) & (self.decks['name'] == 'custom'), 'id'].item()
         self._lock.release()
         return res

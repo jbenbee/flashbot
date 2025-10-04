@@ -22,7 +22,7 @@ class LearningPlan:
         self.user_config = user_config
         self.interface = interface
         self.templates = templates
-        self.max_n_reps = 100  # a word will not be tested more than this many times
+        self.max_n_reps = 10  # a word will not be tested more than this many times
     
     def calculate_interval(self, item: Item) -> int:
         """Returns number of days until the next review."""
@@ -262,7 +262,10 @@ class LearningPlan:
         not_ignored_words = progress_words_df.loc[(progress_words_df['lang'] == lang.lower()) & (progress_words_df['chat_id'] == chat_id) &
                                                   progress_words_df['to_ignore'].isin([False, np.nan])]
 
-        user_words_str = ', '.join(not_ignored_words['word'].to_list())
+        if not_ignored_words.shape[0] > 0:
+            user_words_str = ', '.join(not_ignored_words['word'].to_list())
+        else:
+            user_words_str = 'No words learned yet.'
 
         message_template = self.templates.get_template(uilang, lang, 'gen_words')
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
@@ -300,6 +303,8 @@ class LearningPlan:
                 break
 
         custom_deck_id = self.decks_db.get_custom_deck_id(str(chat_id), lang)
+        if custom_deck_id is None:
+            custom_deck_id = self.decks_db.add_custom_deck(str(chat_id), lang)
 
         for word in new_words:
             word_id = self.words_db.add_new_word(word, lang)

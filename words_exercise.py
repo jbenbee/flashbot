@@ -26,6 +26,7 @@ class ExampleSentenceSchema(BaseModel):
 
     example_sentence: str
     sentence_translation: str
+    pronunciation: Optional[str]
 
 
 class WordTestSchema(BaseModel):
@@ -37,6 +38,7 @@ class WordTestSchema(BaseModel):
 
 class WordExamplesSchema(BaseModel):
     example_list: list[ExampleSentenceSchema]
+    pronunciation: Optional[str]
     conjugations: Optional[str]
 
     class Config:
@@ -107,9 +109,9 @@ class WordsExerciseLearn(Exercise):
                                                           model_substitute=self.model_substitute, response_format=response_format, validation_cls=WordExamplesSchema)
         
         message_template = self.templates.get_template(self.uilang, self.lang, 'learn_word_user_message')
-        examples = [(entry.example_sentence, entry.sentence_translation) for entry in assistant_response.example_list]
+        # examples = [(entry.example_sentence, entry.sentence_translation) for entry in assistant_response.example_list]
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-        message = template.render(word=self.word, examples=examples, conjugations=assistant_response.conjugations)
+        message = template.render(word=self.word, examples=assistant_response.example_list, conjugations=assistant_response.conjugations, pronunciation=assistant_response.pronunciation)
         return message, None
 
 
