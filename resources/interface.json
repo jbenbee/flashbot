@@ -71,6 +71,10 @@
     "russian": "Эта команда уже была обработана",
     "english": "The command has already been processed"
   },
+  "Song of the day": {
+    "russian": "Песня дня",
+    "english": "Song of the day"
+  },
   "Something went terribly wrong, please try again or notify the admin": {
     "russian": "Что-то пошло не так, пожалуйста уведомити админа",
     "english": "Something went terribly wrong, please try again or notify the admin"

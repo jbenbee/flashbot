@@ -1,3 +1,5 @@
 Here are {{lang}} words that I have already learned: {{user_words_str}}
 
+If no words have been learned yet, create a list of {{lang}} words and expressions for complete beginners.
+
 Analyze the words that I have already learned. Based on this, find the topic that could be useful to me and in which I know few words. Suggest 30 new {{lang}} words in the selected topic.

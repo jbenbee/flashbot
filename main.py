@@ -18,15 +18,18 @@ from decks_db import DecksDB
 from exercise import Exercise
 from learning_plan import LearningPlan
 from templates import Templates
-from utils import get_audio
+from utils import get_audio, generate_song_of_the_day
 from words_progress_db import WordsProgressDB
 from user_config import UserConfig
 from words_db import WordsDB
 from words_exercise import FlashcardExercise, WordsExerciseLearn, WordsExerciseTest
 from running_activities import RunningActivities
+import dotenv
+from tempfile import TemporaryDirectory
 
 import logging
 
+dotenv.load_dotenv()
 
 # Disable optional logging
 logging.getLogger('httpx').setLevel(logging.WARNING)
@@ -108,11 +111,11 @@ async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
         await handle_new_exercise(bot, chat_id, exercise)
 
 
-async def tel_send_audio(bot, chat_id, audio_file_path):
+async def tel_send_audio(bot, chat_id, audio_file_path, title='audio.mp3'):
     with open(audio_file_path, 'rb') as audio_file:
         payload = {
             'chat_id': str(chat_id),
-            'title': 'audio.mp3',
+            'title': title,
             'parse_mode': 'HTML'
         }
         files = {
@@ -125,7 +128,24 @@ async def tel_send_audio(bot, chat_id, audio_file_path):
             files=files)
         resp.json()
 
-async def tel_send_message(bot, chat_id, text, buttons=None):
+async def tel_send_image(bot, chat_id, image_file_path, caption):
+    with open(image_file_path, 'rb') as img_file:
+        payload = {
+            'chat_id': str(chat_id),
+            'caption': caption,
+            'parse_mode': 'HTML'
+        }
+        files = {
+            'photo': img_file.read(),
+        }
+
+        resp = requests.post(
+            f"https://api.telegram.org/bot{bot.token}/sendPhoto",
+            data=payload,
+            files=files)
+        resp.json()
+
+async def tel_send_message(bot, chat_id, text, buttons=None, parse_mode="MarkdownV2"):
 
     # determine max line length to know if to display buttons on separate lines or on the same one
     lines = text.split('\n')
@@ -148,7 +168,7 @@ async def tel_send_message(bot, chat_id, text, buttons=None):
         }
 
     converted = telegramify_markdown.markdownify(text)
-    await bot.send_message(chat_id, converted, reply_markup=reply_markup,  parse_mode="MarkdownV2")
+    await bot.send_message(chat_id, converted, reply_markup=reply_markup,  parse_mode=parse_mode)
 
 
 async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -208,6 +228,19 @@ async def handle_next_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f'Could not create an exercise "words" for data "learn".')
     else:
         await handle_new_exercise(bot, chat_id, exercise)
+    
+    if user_config.get_user_data(chat_id).get('song_of_the_day', False):
+
+        with TemporaryDirectory() as fp:
+            song_data = generate_song_of_the_day(word=exercise.word, lang=lang, dirpath=Path(fp))
+            
+            lyrics = '\n'.join([f'> {line}' for line in song_data['lyrics'].split('\n')])
+
+            # await tel_send_message(bot, chat_id, mes)
+            await tel_send_image(bot, chat_id, song_data['img_path'], exercise.word)
+            await tel_send_message(bot, chat_id, lyrics)
+            await tel_send_audio(bot, chat_id, song_data['audio_data'][0]['audio_file_path'], title=song_data['title'] + ' (1)')
+            await tel_send_audio(bot, chat_id, song_data['audio_data'][1]['audio_file_path'], title=song_data['title'] + ' (2)')
 
 
 async def handle_exercise_button_press(update, context, chat_id, lang, udata, exercise):

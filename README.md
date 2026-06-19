@@ -14,8 +14,8 @@ In addition, you can invoke a command to send you a new exercise whenever you wa
    - next_new - Next new word
    - add_word - Add a word 
 3. Set up environment variables:
-    - Specify the bot token in environmental variable ```BOT_TOKEN``` or in ```api_keys/bot_token.txt```
-    - Specify OpenAI API key in environmental variable ```OPENAI_KEY``` or on the first line of ```api_keys/openai_api.txt```
+    - Specify the bot token in environmental variable ```BOT_TOKEN_{LANG}```, where LANG is the language of the bot UI
+    - Specify OpenAI API key in environmental variable ```OPENAI_KEY```
     - Path to folder containing user files ```CH_USER_DATA_ROOT```
 5. Find chat_ids of all users who will use the bot.
 6. Specify user config in ```user_data/user_config.json``` for all users. For each user add an entry into ```<CH_USER_DATA_ROOT>/decks_db.csv``` as shown in ```resources/decks_db.csv```.
