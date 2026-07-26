@@ -1,0 +1,4 @@
+I am learning {{lang}}.{% if words_str %} Here are the words that I am currently learning: {{words_str}}.
+
+Come up with a creative idea for a song in {{lang}} whose lyrics contain all of these words. Select one of these genres for the song: {{genres}}.{% else %} Come up with a creative idea for a song in {{lang}} suitable for a beginner learner.{% endif %} It is currently {{local_time}} at my location.{% if weather %} The current weather at my location is: {{weather}}.{% endif %} Tune the mood, atmosphere and storyline of the song to match this time of day{% if weather %} and weather{% endif %}.
+Describe in {{lang}} the theme and storyline of the song in 1-2 sentences.{% if words_str %} Specify that the lyrics must contain the words that I am learning in different forms: Different tenses, different personas, etc.{% endif %} Output only this and nothing more, as your output will be fed as-is into another tool.

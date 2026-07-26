@@ -3,6 +3,7 @@ import json
 import os.path
 from datetime import datetime, timedelta
 from pathlib import Path
+import random
 import signal
 from zoneinfo import ZoneInfo
 
@@ -18,7 +19,7 @@ from decks_db import DecksDB
 from exercise import Exercise
 from learning_plan import LearningPlan
 from templates import Templates
-from utils import get_audio, generate_song_of_the_day
+from utils import get_audio, generate_song_of_the_day, get_assistant_response, get_weather_forecast
 from words_progress_db import WordsProgressDB
 from user_config import UserConfig
 from words_db import WordsDB
@@ -97,6 +98,18 @@ async def handle_new_exercise(bot, chat_id, exercise):
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
 
+# async def send_song_of_the_day(bot, chat_id, prompt):
+#     with TemporaryDirectory() as fp:
+#         song_data = await generate_song_of_the_day(prompt=prompt, dirpath=Path(fp))
+
+#         lyrics = '\n'.join([f'> {line}' for line in song_data['lyrics'].split('\n')])
+
+#         await tel_send_image(bot, chat_id, song_data['img_path'], song_data['title'])
+#         await tel_send_message(bot, chat_id, lyrics)
+#         await tel_send_audio(bot, chat_id, song_data['audio_data'][0]['audio_file_path'], title=song_data['title'] + ' (1)')
+#         await tel_send_audio(bot, chat_id, song_data['audio_data'][1]['audio_file_path'], title=song_data['title'] + ' (2)')
+
+
 async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
     uilang = lang_map[bot.token]
     if exercise_type == 'words':
@@ -109,6 +122,7 @@ async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
         print(f'Could not create an exercise {exercise_type} for data {exercise_data}.')
     else:
         await handle_new_exercise(bot, chat_id, exercise)
+
 
 
 async def tel_send_audio(bot, chat_id, audio_file_path, title='audio.mp3'):
@@ -185,6 +199,8 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_next_new(update, context)
         elif command == 'next_test':
             await handle_next_test(update, context)
+        elif command == 'song_of_the_day':
+            await handle_song_of_the_day(update, context)
     except Exception as e:
         if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
         release_all_locks()
@@ -228,19 +244,65 @@ async def handle_next_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f'Could not create an exercise "words" for data "learn".')
     else:
         await handle_new_exercise(bot, chat_id, exercise)
-    
-    if user_config.get_user_data(chat_id).get('song_of_the_day', False):
 
-        with TemporaryDirectory() as fp:
-            song_data = generate_song_of_the_day(word=exercise.word, lang=lang, dirpath=Path(fp))
-            
-            lyrics = '\n'.join([f'> {line}' for line in song_data['lyrics'].split('\n')])
 
-            # await tel_send_message(bot, chat_id, mes)
-            await tel_send_image(bot, chat_id, song_data['img_path'], exercise.word)
-            await tel_send_message(bot, chat_id, lyrics)
-            await tel_send_audio(bot, chat_id, song_data['audio_data'][0]['audio_file_path'], title=song_data['title'] + ' (1)')
-            await tel_send_audio(bot, chat_id, song_data['audio_data'][1]['audio_file_path'], title=song_data['title'] + ' (2)')
+async def handle_song_of_the_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    bot = context._application.bot
+    uilang = lang_map[bot.token]
+    user_data = user_config.get_user_data(chat_id)
+    lang = user_data['language']
+
+    # the song of the day can only be generated once per day (based on the user's local date)
+    user_tz = ZoneInfo(user_data["timezone"])
+    today = datetime.now(tz=user_tz).date()
+    if user_data.get('last_song_of_the_day_date') == today.isoformat():
+        await tel_send_message(bot, chat_id, interface['The next song of the day will be available tomorrow'][uilang])
+        return
+
+    await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
+
+    # with open('resources/song_genres.json', 'r') as fp:
+    #     genres = json.loads(fp.read())
+    genres = user_data.get('genres', [])
+
+    genre_prompt = ''
+    if genres:
+        genres_sub = random.sample(genres, min(5, len(genres)))
+
+    # sample 5 words that the user is currently learning
+    learning_words = lp.get_due_today(chat_id, lang) or []
+    n_sample = min(5, len(learning_words))
+    sampled_words = random.sample(learning_words, n_sample) if n_sample > 0 else []
+
+    # get the current time and weather at the user's location to tune the song to them
+    local_time = datetime.now(tz=user_tz).strftime('%A, %d %B %Y, %H:%M')
+    weather = get_weather_forecast(user_tz)
+
+    # ask the LLM for a song idea containing all the sampled words
+    message_template = templates.get_template('english', lang, 'song_of_the_day_query')
+    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+    query = template.render(lang=interface[lang][uilang], words_str=', '.join(sampled_words), genres=', '.join(genres_sub), weather=weather, local_time=local_time)
+
+    model_base = os.getenv('MODEL_BASE')
+    model_substitute = os.getenv('MODEL_SUBSTITUTE')
+    llm_prompt = await get_assistant_response(interface, query, uilang=uilang,
+                                              model_base=model_base, model_substitute=model_substitute)
+
+    prompt = f"{llm_prompt}\n{genre_prompt}"
+
+    with TemporaryDirectory() as fp:
+        song_data = await generate_song_of_the_day(prompt=prompt, dirpath=Path(fp))
+
+        lyrics = '\n'.join([f'> {line}' for line in song_data['lyrics'].split('\n')])
+
+        await tel_send_image(bot, chat_id, song_data['img_path'], song_data['title'])
+        await tel_send_message(bot, chat_id, lyrics)
+        await tel_send_audio(bot, chat_id, song_data['audio_data'][0]['audio_file_path'], title=song_data['title'] + ' (1)')
+        await tel_send_audio(bot, chat_id, song_data['audio_data'][1]['audio_file_path'], title=song_data['title'] + ' (2)')
+
+
+    user_config.set_user_field(chat_id, 'last_song_of_the_day_date', today.isoformat())
 
 
 async def handle_exercise_button_press(update, context, chat_id, lang, udata, exercise):
@@ -609,6 +671,7 @@ if __name__ == '__main__':
         application.add_handler(CommandHandler("add_word", handle_command))
         application.add_handler(CommandHandler("next_test", handle_command))
         application.add_handler(CommandHandler("next_new", handle_command))
+        application.add_handler(CommandHandler("song_of_the_day", handle_command))
         application.add_handler(CallbackQueryHandler(handle_inline_request))
 
         job_queue = application.job_queue

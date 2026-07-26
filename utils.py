@@ -1,9 +1,11 @@
+import asyncio
 import base64
 import json
 import os
 from pathlib import Path
 import random
 import time
+import httpx
 import openai
 import requests
 
@@ -52,6 +54,31 @@ async def get_assistant_response(interface, query, uilang, model_base, model_sub
     return validated_resp
 
 
+def get_weather_forecast(tz):
+    """Get a short description of the current weather for the city derived from the user's timezone.
+
+    Uses the free wttr.in service (no API key required). Returns None if the weather could not be fetched.
+    """
+    try:
+        city = str(tz).split('/')[-1].replace('_', ' ')
+        response = requests.get(f'https://wttr.in/{city}?format=j1', timeout=5)
+        response.raise_for_status()
+        data = response.json()
+
+        current = data['current_condition'][0]
+        today = data['weather'][0]
+
+        condition = current['weatherDesc'][0]['value']
+        temp = current['temp_C']
+        min_temp = today['mintempC']
+        max_temp = today['maxtempC']
+
+        return f'{condition}, {temp}°C (today: {min_temp}-{max_temp}°C)'
+    except Exception as e:
+        print(f'Could not get the weather forecast: {e}')
+        return None
+
+
 def get_audio(query, lang, file_path):
 
     openai_key = os.getenv('OPENAI_KEY')
@@ -77,7 +104,7 @@ def get_audio(query, lang, file_path):
     with open(file_path, "wb") as f:
         f.write(wav_bytes)
 
-def download_file(aurl, fpath):
+async def download_file(client, aurl, fpath):
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -87,29 +114,22 @@ def download_file(aurl, fpath):
         "Referer": "https://aiquickdraw.com/",
     }
 
-    r = requests.get(aurl, headers=headers, stream=True)
-    r.raise_for_status()
+    async with client.stream("GET", aurl, headers=headers) as r:
+        r.raise_for_status()
 
-    with open(fpath, "wb") as f:
-        for chunk in r.iter_content(8192):
-            f.write(chunk)
+        with open(fpath, "wb") as f:
+            async for chunk in r.aiter_bytes(8192):
+                f.write(chunk)
 
-def generate_song_of_the_day(word, lang, dirpath):
+async def generate_song_of_the_day(prompt, dirpath):
     print(f'Generating song of the day')
     BASE_URL = "https://api.sunoapi.org"
     url = f"{BASE_URL}/api/v1/generate"
 
-    with open('resources/song_genres.json', 'r') as fp:
-        genres = json.loads(fp.read())
-
-    genre_prompt = ''
-    if genres:
-        genre = random.sample(genres, 1)
-        genre_prompt = f" Genre: {genre[0]}."
     payload = {
         "customMode": False,
         "model": "V4_5",
-        "prompt": f"Create a song in {lang} that uses in its lyrics the word '{word}'.{genre_prompt}",
+        "prompt": prompt,
         "instrumental": False,
         "callBackUrl": "test.url"
     }
@@ -119,41 +139,42 @@ def generate_song_of_the_day(word, lang, dirpath):
         "Content-Type": "application/json"
     }
 
-    response = requests.post(url, json=payload, headers=headers)
-    response.raise_for_status()
-    task_id = response.json()['data']["taskId"]
-
-    print(f'Sent generation request, waiting...')
-
-    url = f"{BASE_URL}/api/v1/generate/record-info"
-    n_iter = 1
-    while True:
-        response = requests.get(url, headers=headers, params={"taskId": task_id})
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(url, json=payload, headers=headers)
         response.raise_for_status()
+        task_id = response.json()['data']["taskId"]
 
-        data = response.json()
-        status = data['data']['status']
-        
-        if status == "SUCCESS":
-            print(f'Song generation complete')
-            
-            audio_url_field = 'audioUrl'
-            audio_data = [{'audio_url': d[audio_url_field], 'audio_file_path': dirpath / f'f{didx}.mp3'}
-                          for didx, d in enumerate(data['data']['response']['sunoData'])]
-            data = {'img_path': dirpath / f'img.jpg', 'img_url': data['data']['response']['sunoData'][0]['imageUrl'], 
-                    'lyrics': data['data']['response']['sunoData'][0]['prompt'], 'title': data['data']['response']['sunoData'][0]['title'], 'audio_data': audio_data}
+        print(f'Sent generation request, waiting...')
 
-            download_file(data['img_url'], str(data['img_path']))
-            
-            for aurl in audio_data:
-                download_file(aurl['audio_url'], str(aurl['audio_file_path']))
+        url = f"{BASE_URL}/api/v1/generate/record-info"
+        n_iter = 1
+        while True:
+            response = await client.get(url, headers=headers, params={"taskId": task_id})
+            response.raise_for_status()
 
-            return data
-        elif status == "PENDING" or 'SUCCESS' in status:
-            print("Still generating...")
-            time.sleep(5 * n_iter)
-            n_iter += 1
-            if n_iter > 20:
-                raise Exception('Song generation took too long.')
-        elif "FAIL" in status:
-            raise Exception(status)
+            data = response.json()
+            status = data['data']['status']
+
+            if status == "SUCCESS":
+                print(f'Song generation complete')
+
+                audio_url_field = 'audioUrl'
+                audio_data = [{'audio_url': d[audio_url_field], 'audio_file_path': dirpath / f'f{didx}.mp3'}
+                              for didx, d in enumerate(data['data']['response']['sunoData'])]
+                data = {'img_path': dirpath / f'img.jpg', 'img_url': data['data']['response']['sunoData'][0]['imageUrl'],
+                        'lyrics': data['data']['response']['sunoData'][0]['prompt'], 'title': data['data']['response']['sunoData'][0]['title'], 'audio_data': audio_data}
+
+                await asyncio.gather(
+                    download_file(client, data['img_url'], str(data['img_path'])),
+                    *[download_file(client, aurl['audio_url'], str(aurl['audio_file_path'])) for aurl in audio_data]
+                )
+
+                return data
+            elif status == "PENDING" or 'SUCCESS' in status:
+                print("Still generating...")
+                await asyncio.sleep(5 * n_iter)
+                n_iter += 1
+                if n_iter > 20:
+                    raise Exception('Song generation took too long.')
+            elif "FAIL" in status:
+                raise Exception(status)

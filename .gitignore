@@ -1,3 +1,8 @@
+running_exercise.jb
+.vscode
+__pycache__
+.DS_Store
+.env
 run_en.sh
 api_keys
 personal_files
