@@ -5,11 +5,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import random
 import signal
+import threading
 from zoneinfo import ZoneInfo
 
 import jinja2
 from flask import Flask
-import requests
 
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -48,6 +48,68 @@ BOT_LANGS = ['english']
 if BOT_TOKEN_RU is not None:
     BOT_TOKENS.append(BOT_TOKEN_RU)
     BOT_LANGS.append('russian')
+
+CONCURRENT_UPDATES_LIMIT = int(os.getenv('PTB_CONCURRENT_UPDATES', '8'))
+
+busy_users: set[int] = set()
+busy_users_lock = threading.Lock()
+
+# Global cap on simultaneous song generations (protects API rate limits and
+# prevents too many large file downloads at once). Reject-rather-than-queue:
+# requests over the cap are turned away immediately instead of waiting.
+SONG_GEN_CONCURRENT_LIMIT = int(os.getenv('SONG_GEN_CONCURRENT_LIMIT', '2'))
+
+song_gen_in_progress = 0
+song_gen_lock = threading.Lock()
+
+
+def try_acquire_user_slot(chat_id):
+    with busy_users_lock:
+        if chat_id in busy_users:
+            return False
+        busy_users.add(chat_id)
+        return True
+
+
+def release_user_slot(chat_id):
+    with busy_users_lock:
+        busy_users.discard(chat_id)
+
+
+def try_acquire_song_slot():
+    """Reserve a global song-generation slot without waiting.
+
+    Returns False immediately if SONG_GEN_CONCURRENT_LIMIT generations are
+    already running; the caller is expected to reject the request.
+    """
+    global song_gen_in_progress
+    with song_gen_lock:
+        if song_gen_in_progress >= SONG_GEN_CONCURRENT_LIMIT:
+            return False
+        song_gen_in_progress += 1
+        return True
+
+
+def release_song_slot():
+    global song_gen_in_progress
+    with song_gen_lock:
+        if song_gen_in_progress > 0:
+            song_gen_in_progress -= 1
+
+
+async def notify_user_is_busy(update, context, chat_id):
+    bot = context._application.bot
+    uilang = lang_map[bot.token]
+    message = interface['Another request is already being processed'][uilang]
+
+    if update is not None and update.callback_query is not None:
+        try:
+            await update.callback_query.answer(text=message, show_alert=False)
+            return
+        except Exception as e:
+            print(f'Could not send busy callback answer to {chat_id}: {e}')
+
+    await tel_send_message(bot, chat_id, message)
 
 
 async def handle_new_exercise(bot, chat_id, exercise):
@@ -93,7 +155,6 @@ async def handle_new_exercise(bot, chat_id, exercise):
         await tel_send_message(bot, chat_id, message, buttons=buttons)
     except Exception as e:
         if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
-        release_all_locks()
         print(e)
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
@@ -112,52 +173,34 @@ async def handle_new_exercise(bot, chat_id, exercise):
 
 async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
     uilang = lang_map[bot.token]
-    if exercise_type == 'words':
-        exercise = await lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
-    else:
-        raise ValueError(f'Unknown exercise type {exercise_type}')
 
-    if exercise is None:
-        await tel_send_message(bot, chat_id, interface['Could not create an exercise, will try again later'][uilang])
-        print(f'Could not create an exercise {exercise_type} for data {exercise_data}.')
-    else:
-        await handle_new_exercise(bot, chat_id, exercise)
+    if not try_acquire_user_slot(chat_id):
+        print(f'Skipping scheduled ping for busy user {chat_id}.')
+        return
+
+    try:
+        if exercise_type == 'words':
+            exercise = await lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
+        else:
+            raise ValueError(f'Unknown exercise type {exercise_type}')
+
+        if exercise is None:
+            await tel_send_message(bot, chat_id, interface['Could not create an exercise, will try again later'][uilang])
+            print(f'Could not create an exercise {exercise_type} for data {exercise_data}.')
+        else:
+            await handle_new_exercise(bot, chat_id, exercise)
+    finally:
+        release_user_slot(chat_id)
 
 
 
 async def tel_send_audio(bot, chat_id, audio_file_path, title='audio.mp3'):
     with open(audio_file_path, 'rb') as audio_file:
-        payload = {
-            'chat_id': str(chat_id),
-            'title': title,
-            'parse_mode': 'HTML'
-        }
-        files = {
-            'audio': audio_file.read(),
-        }
-
-        resp = requests.post(
-            f"https://api.telegram.org/bot{bot.token}/sendAudio",
-            data=payload,
-            files=files)
-        resp.json()
+        await bot.send_audio(chat_id=chat_id, audio=audio_file, title=title, parse_mode='HTML')
 
 async def tel_send_image(bot, chat_id, image_file_path, caption):
     with open(image_file_path, 'rb') as img_file:
-        payload = {
-            'chat_id': str(chat_id),
-            'caption': caption,
-            'parse_mode': 'HTML'
-        }
-        files = {
-            'photo': img_file.read(),
-        }
-
-        resp = requests.post(
-            f"https://api.telegram.org/bot{bot.token}/sendPhoto",
-            data=payload,
-            files=files)
-        resp.json()
+        await bot.send_photo(chat_id=chat_id, photo=img_file, caption=caption, parse_mode='HTML')
 
 async def tel_send_message(bot, chat_id, text, buttons=None, parse_mode="MarkdownV2"):
 
@@ -192,6 +235,10 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command = update.message.text[1:]
     chat_id = update.message.chat_id
 
+    if not try_acquire_user_slot(chat_id):
+        await notify_user_is_busy(update, context, chat_id)
+        return
+
     try:
         if command == 'add_word':
             await handle_add_word(update, context)
@@ -203,9 +250,10 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_song_of_the_day(update, context)
     except Exception as e:
         if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
-        release_all_locks()
         print(e)
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
+    finally:
+        release_user_slot(chat_id)
 
 
 async def handle_add_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -260,49 +308,57 @@ async def handle_song_of_the_day(update: Update, context: ContextTypes.DEFAULT_T
         await tel_send_message(bot, chat_id, interface['The next song of the day will be available tomorrow'][uilang])
         return
 
-    await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
+    # reject (not queue) if too many song generations are already running globally
+    if not try_acquire_song_slot():
+        print(f'Rejecting song_of_the_day for {chat_id}: song generation capacity reached ({SONG_GEN_CONCURRENT_LIMIT}).')
+        await tel_send_message(bot, chat_id, interface['Too many song generations are in progress, please try again later'][uilang])
+        return
 
-    # with open('resources/song_genres.json', 'r') as fp:
-    #     genres = json.loads(fp.read())
-    genres = user_data.get('genres', [])
+    try:
+        await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
 
-    genre_prompt = ''
-    if genres:
-        genres_sub = random.sample(genres, min(5, len(genres)))
+        # with open('resources/song_genres.json', 'r') as fp:
+        #     genres = json.loads(fp.read())
+        genres = user_data.get('genres', [])
 
-    # sample 5 words that the user is currently learning
-    learning_words = lp.get_due_today(chat_id, lang) or []
-    n_sample = min(5, len(learning_words))
-    sampled_words = random.sample(learning_words, n_sample) if n_sample > 0 else []
+        genre_prompt = ''
+        genres_sub = random.sample(genres, min(5, len(genres))) if genres else []
 
-    # get the current time and weather at the user's location to tune the song to them
-    local_time = datetime.now(tz=user_tz).strftime('%A, %d %B %Y, %H:%M')
-    weather = get_weather_forecast(user_tz)
+        # sample 5 words that the user is currently learning
+        learning_words = lp.get_due_today(chat_id, lang) or []
+        n_sample = min(5, len(learning_words))
+        sampled_words = random.sample(learning_words, n_sample) if n_sample > 0 else []
 
-    # ask the LLM for a song idea containing all the sampled words
-    message_template = templates.get_template('english', lang, 'song_of_the_day_query')
-    template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-    query = template.render(lang=interface[lang][uilang], words_str=', '.join(sampled_words), genres=', '.join(genres_sub), weather=weather, local_time=local_time)
+        # get the current time and weather at the user's location to tune the song to them
+        local_time = datetime.now(tz=user_tz).strftime('%A, %d %B %Y, %H:%M')
+        weather = await get_weather_forecast(user_tz)
 
-    model_base = os.getenv('MODEL_BASE')
-    model_substitute = os.getenv('MODEL_SUBSTITUTE')
-    llm_prompt = await get_assistant_response(interface, query, uilang=uilang,
-                                              model_base=model_base, model_substitute=model_substitute)
+        # ask the LLM for a song idea containing all the sampled words
+        message_template = templates.get_template('english', lang, 'song_of_the_day_query')
+        template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
+        query = template.render(lang=interface[lang][uilang], words_str=', '.join(sampled_words), genres=', '.join(genres_sub), weather=weather, local_time=local_time)
 
-    prompt = f"{llm_prompt}\n{genre_prompt}"
+        model_base = os.getenv('MODEL_BASE')
+        model_substitute = os.getenv('MODEL_SUBSTITUTE')
+        llm_prompt = await get_assistant_response(interface, query, uilang=uilang,
+                                                  model_base=model_base, model_substitute=model_substitute)
 
-    with TemporaryDirectory() as fp:
-        song_data = await generate_song_of_the_day(prompt=prompt, dirpath=Path(fp))
+        prompt = f"{llm_prompt}\n{genre_prompt}"
 
-        lyrics = '\n'.join([f'> {line}' for line in song_data['lyrics'].split('\n')])
+        with TemporaryDirectory() as fp:
+            song_data = await generate_song_of_the_day(prompt=prompt, dirpath=Path(fp))
 
-        await tel_send_image(bot, chat_id, song_data['img_path'], song_data['title'])
-        await tel_send_message(bot, chat_id, lyrics)
-        await tel_send_audio(bot, chat_id, song_data['audio_data'][0]['audio_file_path'], title=song_data['title'] + ' (1)')
-        await tel_send_audio(bot, chat_id, song_data['audio_data'][1]['audio_file_path'], title=song_data['title'] + ' (2)')
+            lyrics = '\n'.join([f'> {line}' for line in song_data['lyrics'].split('\n')])
+
+            await tel_send_image(bot, chat_id, song_data['img_path'], song_data['title'])
+            await tel_send_message(bot, chat_id, lyrics)
+            await tel_send_audio(bot, chat_id, song_data['audio_data'][0]['audio_file_path'], title=song_data['title'] + ' (1)')
+            await tel_send_audio(bot, chat_id, song_data['audio_data'][1]['audio_file_path'], title=song_data['title'] + ' (2)')
 
 
-    user_config.set_user_field(chat_id, 'last_song_of_the_day_date', today.isoformat())
+        user_config.set_user_field(chat_id, 'last_song_of_the_day_date', today.isoformat())
+    finally:
+        release_song_slot()
 
 
 async def handle_exercise_button_press(update, context, chat_id, lang, udata, exercise):
@@ -368,12 +424,12 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
 
             elif f'Answer audio' == udata:
                 file_path = f'{chat_id}_{exercise.uid}.mp3'
-                get_audio(exercise.correct_answer(), exercise.lang, file_path)
+                await get_audio(exercise.correct_answer(), exercise.lang, file_path)
                 await tel_send_audio(bot, chat_id, file_path)
                 os.remove(file_path)
             elif f'Pronounce' == udata:
                 file_path = f'{chat_id}_{exercise.uid}.mp3'
-                get_audio(exercise.word, exercise.lang, file_path)
+                await get_audio(exercise.word, exercise.lang, file_path)
                 await tel_send_audio(bot, chat_id, file_path)
                 os.remove(file_path)
             elif f'Next' == udata:
@@ -412,7 +468,6 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
             raise ValueError(f'Unknown exercise type: {type(exercise)}.')
     except Exception as e:
         if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
-        release_all_locks()
         print(e)
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
@@ -439,10 +494,15 @@ def execute_command_message(context, chat_id, lang, command, msg):
 
 
 async def handle_inline_request(update, context):
+    bot = context._application.bot
+    uilang = lang_map[bot.token]
+    chat_id = update.callback_query.from_user.id
+
+    if not try_acquire_user_slot(chat_id):
+        await notify_user_is_busy(update, context, chat_id)
+        return
+
     try:
-        bot = context._application.bot
-        uilang = lang_map[bot.token]
-        chat_id = update.callback_query.from_user.id
         lang = user_config.get_user_data(chat_id)['language']
 
         data = update.callback_query.data
@@ -465,16 +525,22 @@ async def handle_inline_request(update, context):
 
     except Exception as e:
         if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
-        release_all_locks()
         print(e)
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
+    finally:
+        release_user_slot(chat_id)
 
 
 async def handle_request(update, context):
+    chat_id = update.message.chat_id
+    bot = context._application.bot
+    uilang = lang_map[bot.token]
+
+    if not try_acquire_user_slot(chat_id):
+        await notify_user_is_busy(update, context, chat_id)
+        return
+
     try:
-        chat_id = update.message.chat_id
-        bot = context._application.bot
-        uilang = lang_map[bot.token]
         msg = update.message.text
         print(f'{chat_id} message: {msg}')
 
@@ -520,15 +586,11 @@ async def handle_request(update, context):
 
     except Exception as e:
         if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
-        release_all_locks()
         print(e)
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
+    finally:
+        release_user_slot(chat_id)
     return
-
-
-def release_all_locks():
-    for shared_obj in shared_objs:
-        shared_obj.release_lock()
 
 
 async def ping_users(context):
@@ -555,13 +617,13 @@ async def ping_users(context):
                 continue
             users_to_ping.append(dict(chat_id=chat_id, lang=user_data[chat_id]['language'], exercise=ping_schedule[0]))
 
-    try:
-        for user in users_to_ping:
+    for user in users_to_ping:
+        try:
             await ping_user(bot, user['chat_id'], user['lang'], 'words', user['exercise'])
-    except Exception as e:
-        if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
-        release_all_locks()
-        print(e)
+        except Exception as e:
+            # clean up only the failed user's activities; other users are unaffected
+            if user['chat_id'] in running_activities.chat_ids: running_activities.pop_all(user['chat_id'])
+            print(e)
 
 
 def nearest_start_time(ping_interval=15 * 60):
@@ -655,8 +717,6 @@ if __name__ == '__main__':
 
     lp = LearningPlan(interface, templates, words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db, user_config=user_config)
 
-    shared_objs = [user_config, words_db, words_progress_db, decks_db, running_activities]
-
     # list of known exercise buttons
     # exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next', 'Pronounce', 'Easier', 'Harder']
     exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'Answer audio', 'Next', 'Pronounce', 'Easier', 'Harder']
@@ -665,7 +725,12 @@ if __name__ == '__main__':
     lang_map = {}
 
     for bidx, (token, lang) in enumerate(zip(BOT_TOKENS, BOT_LANGS)):
-        application = Application.builder().token(token).build()
+        application = (
+            Application.builder()
+            .token(token)
+            .concurrent_updates(CONCURRENT_UPDATES_LIMIT)
+            .build()
+        )
 
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_request))
         application.add_handler(CommandHandler("add_word", handle_command))

@@ -28,35 +28,24 @@ class UserConfig:
         self._lock = threading.Lock()
 
     def get_all_user_data(self):
-        self._lock.acquire()
-        ud_cpy = copy.deepcopy(self._user_data)
-        self._lock.release()
-        return ud_cpy
+        with self._lock:
+            return copy.deepcopy(self._user_data)
 
     def get_all_chat_ids(self):
-        self._lock.acquire()
-        chat_ids = list(self._user_data.keys())
-        self._lock.release()
-        return chat_ids
+        with self._lock:
+            return list(self._user_data.keys())
 
     def get_user_data(self, chat_id):
-        self._lock.acquire()
-        ud_cpy = copy.deepcopy(self._user_data[chat_id])
-        self._lock.release()
-        return ud_cpy
+        with self._lock:
+            return copy.deepcopy(self._user_data[chat_id])
 
     def get_user_ui_lang(self, chat_id):
         return self._user_data[chat_id]['ui_language'] if 'ui_language' in self._user_data[chat_id].keys() else 'english'
 
     def set_user_field(self, chat_id, key, value):
-        self._lock.acquire()
-        self._user_data[chat_id][key] = value
-        # keep the original JSON-serializable data in sync and persist it
-        self._user_data_orig[str(chat_id)][key] = value
-        with open(self.data_path, 'w', encoding='utf-8') as fp:
-            json.dump(self._user_data_orig, fp, ensure_ascii=False, indent=4)
-        self._lock.release()
-
-    def release_lock(self):
-        if self._lock.locked():
-            self._lock.release()
+        with self._lock:
+            self._user_data[chat_id][key] = value
+            # keep the original JSON-serializable data in sync and persist it
+            self._user_data_orig[str(chat_id)][key] = value
+            with open(self.data_path, 'w', encoding='utf-8') as fp:
+                json.dump(self._user_data_orig, fp, ensure_ascii=False, indent=4)

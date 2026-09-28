@@ -79,6 +79,14 @@
     "russian": "Следующая песня дня будет доступна завтра",
     "english": "The next song of the day will be available tomorrow"
   },
+  "Too many song generations are in progress, please try again later": {
+    "russian": "Сейчас генерируется слишком много песен, пожалуйста попробуйте позже",
+    "english": "Too many song generations are in progress, please try again later"
+  },
+  "Another request is already being processed": {
+    "russian": "Другой запрос уже обрабатывается, пожалуйста подождите",
+    "english": "Another request is already being processed, please wait"
+  },
   "Something went terribly wrong, please try again or notify the admin": {
     "russian": "Что-то пошло не так, пожалуйста уведомити админа",
     "english": "Something went terribly wrong, please try again or notify the admin"

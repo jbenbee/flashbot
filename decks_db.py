@@ -19,67 +19,47 @@ class DecksDB:
         self._lock = threading.Lock()
 
     def get_decks_df(self):
-        self._lock.acquire()
-        pdf_cpy = self.decks.copy()
-        self._lock.release()
-        return pdf_cpy
+        with self._lock:
+            return self.decks.copy()
 
     def get_deck_word_df(self):
-        self._lock.acquire()
-        pdf_cpy = self.deck_word.copy()
-        self._lock.release()
-        return pdf_cpy
+        with self._lock:
+            return self.deck_word.copy()
 
     def get_decks_lang(self, owner: str, lang: str):
         # returns an array of dictionaries
-        self._lock.acquire()
-        owner_lang_data = self.decks.loc[self.decks['owner'].isin([owner, str(owner), 'common']) & (self.decks['language'] == lang)]
-        res = [dict(id=data['id'], owner=data['owner'], name=data['name'], language=data['name'], tags=data['tags']) for d, data in owner_lang_data.iterrows()]
-        self._lock.release()
-        return res
+        with self._lock:
+            owner_lang_data = self.decks.loc[self.decks['owner'].isin([owner, str(owner), 'common']) & (self.decks['language'] == lang)]
+            return [dict(id=data['id'], owner=data['owner'], name=data['name'], language=data['name'], tags=data['tags']) for d, data in owner_lang_data.iterrows()]
 
     def get_deck_words(self, deck_id: int):
-        self._lock.acquire()
-        res = self.deck_word.loc[self.deck_word['deck_id'] == deck_id, 'word_id'].to_list()
-        self._lock.release()
-        return res
+        with self._lock:
+            return self.deck_word.loc[self.deck_word['deck_id'] == deck_id, 'word_id'].to_list()
 
     def get_user_decks(self, chat_id: int, lang: str):
-        self._lock.acquire()
-        res = self.decks.loc[(self.decks['owner'] == str(chat_id)) & (self.decks['language'] == lang)]['id'].to_list()
-        self._lock.release()
-        return res
+        with self._lock:
+            return self.decks.loc[(self.decks['owner'] == str(chat_id)) & (self.decks['language'] == lang)]['id'].to_list()
 
     def get_custom_deck_id(self, chat_id, lang):
-        self._lock.acquire()
-        if len(self.decks.loc[(self.decks['owner'] == str(chat_id)) & (self.decks['language'] == lang) & (self.decks['name'] == 'custom'), 'id']) == 0:
-            self._lock.release()
-            return None
-        res = self.decks.loc[(self.decks['owner'] == str(chat_id)) & (self.decks['language'] == lang) & (self.decks['name'] == 'custom'), 'id'].item()
-        self._lock.release()
-        return res
+        with self._lock:
+            if len(self.decks.loc[(self.decks['owner'] == str(chat_id)) & (self.decks['language'] == lang) & (self.decks['name'] == 'custom'), 'id']) == 0:
+                return None
+            return self.decks.loc[(self.decks['owner'] == str(chat_id)) & (self.decks['language'] == lang) & (self.decks['name'] == 'custom'), 'id'].item()
 
     def add_custom_deck(self, chat_id: str, lang: str):
-        self._lock.acquire()
-        new_deck_id = len(self.decks)
-        self.decks.loc[new_deck_id] = \
-            dict(id=len(self.decks), owner=chat_id, name='custom', language=lang, tags=np.nan)
-        self._lock.release()
-        return new_deck_id
+        with self._lock:
+            new_deck_id = len(self.decks)
+            self.decks.loc[new_deck_id] = \
+                dict(id=len(self.decks), owner=chat_id, name='custom', language=lang, tags=np.nan)
+            return new_deck_id
 
     def save_decks_db(self):
-        self._lock.acquire()
-        self.decks.to_csv(self.decks_path, index=False)
-        self.deck_word.to_csv(self.deck_word_db_path, index=False)
-        self._lock.release()
+        with self._lock:
+            self.decks.to_csv(self.decks_path, index=False)
+            self.deck_word.to_csv(self.deck_word_db_path, index=False)
 
     def add_new_word(self, deck_id: int, word_id: int):
-        self._lock.acquire()
-        self.deck_word.loc[len(self.deck_word)] = \
-            dict(deck_id=deck_id, word_id=word_id)
-        self._lock.release()
-
-    def release_lock(self):
-        if self._lock.locked():
-            self._lock.release()
+        with self._lock:
+            self.deck_word.loc[len(self.deck_word)] = \
+                dict(deck_id=deck_id, word_id=word_id)
 

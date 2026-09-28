@@ -4,7 +4,6 @@
     "language": "italian",
     "timezone": "Europe/Berlin",
     "level": "B1",
-    "max_tokens": 600,
     "show_words_due": 1,
     "n_flashcards": 5,
     "exercise_types": ["words"],
@@ -20,7 +19,6 @@
     "ui_language": "english",
     "timezone": "America/Los_Angeles",
     "level": "A1",
-    "max_tokens": 600,
     "exercise_types": ["words"],
     "schedule": {
       "words": {
