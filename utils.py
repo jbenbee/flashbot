@@ -183,7 +183,7 @@ async def download_file(client, aurl, fpath):
             await asyncio.to_thread(file.close)
 
 @logged_operation
-async def generate_song_of_the_day(prompt, dirpath):
+async def generate_song_of_the_day(prompt, dirpath, *, style=None):
     song = load_model_config().song
     logger.info('Song generation requested model=%s', song.model)
     BASE_URL = "https://api.sunoapi.org"
@@ -194,6 +194,13 @@ async def generate_song_of_the_day(prompt, dirpath):
         "model": song.model,
         "prompt": prompt,
     }
+    # V6 requires a reference input in non-custom mode, even with a prompt.
+    # Use the selected genre; prompt-only callers can use the idea as style.
+    if song.model in {'V6', 'V6_MINI', 'V6_WILD'} and not payload.get('customMode'):
+        if style:
+            payload['style'] = style
+        elif not any(payload.get(key) for key in ('style', 'lyrics', 'imageUrls', 'videoUrls', 'audioUrls')):
+            payload['style'] = prompt[:1000]
     suno_api_key = os.getenv('SUNO_API_KEY')
     headers = {
         "Authorization": f"Bearer {suno_api_key}",
@@ -219,11 +226,21 @@ async def generate_song_of_the_day(prompt, dirpath):
             if status == "SUCCESS":
                 logger.info('Song generation succeeded task_id=%s', task_id)
 
-                audio_url_field = 'audioUrl'
-                audio_data = [{'audio_url': d[audio_url_field], 'audio_file_path': dirpath / f'f{didx}.mp3'}
-                              for didx, d in enumerate(data['data']['response']['sunoData'])]
-                data = {'img_path': dirpath / f'img.jpg', 'img_url': data['data']['response']['sunoData'][0]['imageUrl'],
-                        'lyrics': data['data']['response']['sunoData'][0]['prompt'], 'title': data['data']['response']['sunoData'][0]['title'], 'audio_data': audio_data}
+                tracks = data['data']['response']['sunoData']
+                if not tracks:
+                    raise ValueError('Song generation returned no tracks.')
+                audio_data = [{
+                    'audio_url': track.get('audioUrl') or track['audio_url'],
+                    'audio_file_path': dirpath / f'f{index}.mp3',
+                    'title': track['title'],
+                    'lyrics': track.get('lyrics') or track.get('prompt') or '',
+                } for index, track in enumerate(tracks)]
+                data = {
+                    'img_path': dirpath / 'img.jpg',
+                    'img_url': tracks[0].get('imageUrl') or tracks[0]['image_url'],
+                    'title': tracks[0]['title'],
+                    'audio_data': audio_data,
+                }
 
                 await asyncio.gather(
                     download_file(client, data['img_url'], str(data['img_path'])),

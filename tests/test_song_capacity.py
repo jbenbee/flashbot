@@ -134,11 +134,11 @@ def test_song_of_the_day_with_no_genres_completes(monkeypatch):
         prompts.append(query)
         return 'song prompt'
 
-    async def fake_song(*, prompt, dirpath):
+    async def fake_song(*, prompt, dirpath, style=None):
         return {
-            'title': 'Song', 'lyrics': 'Line', 'img_path': dirpath / 'cover.png',
-            'audio_data': [{'audio_file_path': dirpath / 'one.mp3'},
-                           {'audio_file_path': dirpath / 'two.mp3'}],
+            'title': 'Song', 'img_path': dirpath / 'cover.png',
+            'audio_data': [{'audio_file_path': dirpath / 'one.mp3', 'title': 'Song', 'lyrics': 'Line'},
+                           {'audio_file_path': dirpath / 'two.mp3', 'title': 'Other song', 'lyrics': 'Other line'}],
         }
 
     async def fake_send_media(*args, **kwargs):

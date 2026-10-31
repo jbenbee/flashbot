@@ -227,6 +227,21 @@ async def tel_send_message(bot, chat_id, text, buttons=None, parse_mode="Markdow
     logger.debug('Message sent chat_id=%s characters=%s', chat_id, len(converted))
 
 
+async def tel_send_song_lyrics(bot, chat_id, title, lyrics):
+    """Keep each track labelled and split long lyrics into Telegram messages."""
+    while lyrics:
+        chunk = lyrics[:3000]
+        while True:
+            quoted = '\n'.join(f'> {line}' for line in chunk.split('\n'))
+            message = f'{title}\n\n{quoted}'
+            converted = telegramify_markdown.markdownify(message)
+            if len(converted.encode('utf-16-le')) // 2 <= 4096:
+                break
+            chunk = chunk[:len(chunk) // 2]
+        await tel_send_message(bot, chat_id, message)
+        lyrics = lyrics[len(chunk):]
+
+
 async def log_user_interaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Record incoming interactions before filtering, busy checks or state lookup.
 
@@ -442,14 +457,16 @@ async def send_song_of_the_day(bot, chat_id, *, scheduled=False):
                        'Use these personal details as inspiration for the theme and lyrics, weaving them in naturally.')
 
         with TemporaryDirectory() as fp:
-            song_data = await generate_song_of_the_day(prompt=prompt, dirpath=Path(fp))
-
-            lyrics = '\n'.join([f'> {line}' for line in song_data['lyrics'].split('\n')])
+            song_data = await generate_song_of_the_day(prompt=prompt, dirpath=Path(fp), style=genre or None)
 
             await tel_send_image(bot, chat_id, song_data['img_path'], song_data['title'])
-            await tel_send_message(bot, chat_id, lyrics)
-            await tel_send_audio(bot, chat_id, song_data['audio_data'][0]['audio_file_path'], title=song_data['title'] + ' (1)')
-            await tel_send_audio(bot, chat_id, song_data['audio_data'][1]['audio_file_path'], title=song_data['title'] + ' (2)')
+            tracks = song_data['audio_data']
+            for index, track in enumerate(tracks, start=1):
+                title = track['title']
+                if len(tracks) > 1:
+                    title += f' ({index})'
+                await tel_send_song_lyrics(bot, chat_id, title, track['lyrics'])
+                await tel_send_audio(bot, chat_id, track['audio_file_path'], title=title)
 
 
         await asyncio.to_thread(user_config.set_user_field, chat_id, 'last_song_of_the_day_date', today.isoformat())

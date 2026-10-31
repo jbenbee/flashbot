@@ -18,7 +18,7 @@ def test_default_config_is_independent_of_working_directory(tmp_path, monkeypatc
     assert config.assistant.model_base.model
     assert config.assistant.model_fallback.model
     assert config.speech.model == 'gpt-realtime-2.1-mini'
-    assert config.song.model == 'V4_5'
+    assert config.song.model == 'V6'
 
 
 @pytest.mark.parametrize(('section', 'key', 'value'), [
@@ -107,8 +107,55 @@ def test_song_request_uses_configured_model_and_params(tmp_path, monkeypatch):
     result = asyncio.run(utils.generate_song_of_the_day('test prompt', tmp_path))
 
     assert result['title'] == 'Song'
+    assert result['audio_data'][0]['lyrics'] == 'lyrics'
+    assert result['audio_data'][0]['title'] == 'Song'
     assert requests == [{
         'model': 'configured-song', 'prompt': 'test prompt',
         'customMode': False, 'instrumental': True, 'callBackUrl': 'test.url',
     }]
     assert timeouts == [12.0]
+
+
+@pytest.mark.parametrize('track_count', [1, 2])
+@pytest.mark.parametrize(('audio_field', 'image_field'), [
+    ('audioUrl', 'imageUrl'), ('audio_url', 'image_url'),
+])
+@pytest.mark.parametrize('style', [None, 'jazz'])
+def test_v6_request_and_per_track_metadata(tmp_path, monkeypatch, track_count, audio_field, image_field, style):
+    config = load_model_config().model_copy(deep=True)
+    config.song.model = 'V6'
+    requests = []
+    client_cls = httpx.AsyncClient
+    tracks = [{
+        audio_field: f'https://example.test/song{index}.mp3',
+        image_field: 'https://example.test/image.jpg',
+        'prompt': f'Lyrics for track {index}',
+        'title': f'Song {index}',
+    } for index in range(track_count)]
+
+    def handle(request):
+        if request.method == 'POST':
+            requests.append(json.loads(request.content))
+            return httpx.Response(200, json={'data': {'taskId': 'task_test'}})
+        if request.url.path.endswith('record-info'):
+            return httpx.Response(200, json={'data': {
+                'status': 'SUCCESS', 'response': {'sunoData': tracks},
+            }})
+        return httpx.Response(200, content=b'downloaded')
+
+    monkeypatch.setattr(utils, 'load_model_config', lambda: config)
+    monkeypatch.setattr(utils.httpx, 'AsyncClient', lambda **kwargs: client_cls(
+        transport=httpx.MockTransport(handle), **kwargs))
+
+    result = asyncio.run(utils.generate_song_of_the_day('Song idea', tmp_path, style=style))
+
+    assert requests[0]['model'] == 'V6'
+    assert requests[0]['customMode'] is False
+    assert requests[0]['style'] == (style or 'Song idea')
+    assert requests[0]['prompt'] == 'Song idea'
+    assert len(result['audio_data']) == track_count
+    for index, track in enumerate(result['audio_data']):
+        assert track['title'] == f'Song {index}'
+        assert track['lyrics'] == f'Lyrics for track {index}'
+        assert track['audio_file_path'].read_bytes() == b'downloaded'
+    assert result['img_path'].read_bytes() == b'downloaded'

@@ -37,11 +37,11 @@ def daily_songs(monkeypatch, tmp_path):
     for name in ('tel_send_message', 'tel_send_image', 'tel_send_audio'):
         monkeypatch.setattr(main, name, AsyncMock())
 
-    async def generate(*, prompt, dirpath):
+    async def generate(*, prompt, dirpath, style=None):
         return {
-            'title': 'Song', 'lyrics': 'Lyrics', 'img_path': dirpath / 'cover.png',
-            'audio_data': [{'audio_file_path': dirpath / 'one.mp3'},
-                           {'audio_file_path': dirpath / 'two.mp3'}],
+            'title': 'Song', 'img_path': dirpath / 'cover.png',
+            'audio_data': [{'audio_file_path': dirpath / 'one.mp3', 'title': 'Song', 'lyrics': 'First lyrics'},
+                           {'audio_file_path': dirpath / 'two.mp3', 'title': 'Other song', 'lyrics': 'Second lyrics'}],
         }
 
     monkeypatch.setattr(main, 'generate_song_of_the_day', AsyncMock(side_effect=generate))
@@ -95,6 +95,62 @@ def test_manual_delivery_prevents_automatic_duplicate(daily_songs):
 
     asyncio.run(run())
     main.generate_song_of_the_day.assert_awaited_once()
+
+
+@pytest.mark.parametrize('scheduled', [False, True])
+@pytest.mark.parametrize('track_count', [1, 2])
+def test_each_track_is_sent_with_its_own_title_and_lyrics(daily_songs, scheduled, track_count):
+    daily_songs.configure({123: {'genres': ['jazz']}})
+    generate = main.generate_song_of_the_day.side_effect
+    sent = []
+
+    async def generate_tracks(**kwargs):
+        result = await generate(**kwargs)
+        result['audio_data'] = result['audio_data'][:track_count]
+        return result
+
+    async def send_message(bot, chat_id, text):
+        if text != 'Thinking...':
+            sent.append(('lyrics', text))
+
+    async def send_audio(bot, chat_id, path, *, title):
+        sent.append(('audio', path.name, title))
+
+    main.generate_song_of_the_day.side_effect = generate_tracks
+    main.tel_send_message.side_effect = send_message
+    main.tel_send_audio.side_effect = send_audio
+
+    if scheduled:
+        asyncio.run(main.send_daily_songs(daily_songs.context))
+    else:
+        update = SimpleNamespace(message=SimpleNamespace(chat_id=123))
+        asyncio.run(main.handle_song_of_the_day(update, daily_songs.context))
+
+    title = 'Song (1)' if track_count > 1 else 'Song'
+    expected = [('lyrics', f'{title}\n\n> First lyrics'), ('audio', 'one.mp3', title)]
+    if track_count > 1:
+        expected += [('lyrics', 'Other song (2)\n\n> Second lyrics'),
+                     ('audio', 'two.mp3', 'Other song (2)')]
+    assert sent == expected
+    assert main.generate_song_of_the_day.await_args.kwargs['style'] == 'jazz'
+
+
+@pytest.mark.parametrize('lyrics', ['A line\n' * 900, '_*!😀' * 1500])
+def test_long_song_lyrics_fit_telegram_and_preserve_all_text(monkeypatch, lyrics):
+    send = AsyncMock()
+    monkeypatch.setattr(main, 'tel_send_message', send)
+
+    asyncio.run(main.tel_send_song_lyrics(None, 123, 'Song (2)', lyrics))
+
+    chunks = []
+    assert send.await_count > 1
+    for call in send.await_args_list:
+        message = call.args[2]
+        assert message.startswith('Song (2)\n\n')
+        converted = main.telegramify_markdown.markdownify(message)
+        assert len(converted.encode('utf-16-le')) // 2 <= 4096
+        chunks.append('\n'.join(line.removeprefix('> ') for line in message.split('\n\n', 1)[1].split('\n')))
+    assert ''.join(chunks) == lyrics
 
 
 @pytest.mark.parametrize(('settings', 'due'), [
