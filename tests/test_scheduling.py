@@ -27,6 +27,7 @@ def test_scheduled_pings_use_each_users_local_weekday(monkeypatch, utc_now, expe
     for chat_id, timezone in ((1, 'America/Los_Angeles'), (2, 'Asia/Tokyo')):
         local_time = fixed_now.astimezone(ZoneInfo(timezone)).timetz()
         users[chat_id] = {
+            'enabled': True,
             'ui_language': 'english', 'language': 'english', 'timezone': timezone,
             'exercise_types': ['words'],
             'schedule': {'words': {
@@ -35,9 +36,13 @@ def test_scheduled_pings_use_each_users_local_weekday(monkeypatch, utc_now, expe
             }},
         }
 
-    # Disabled entries and group chats are skipped before reading schedules.
+    # Entries without explicit boolean permission and group chats are skipped.
     users[3] = {'enabled': False}
     users[-4] = {'enabled': True}
+    users[5] = {}
+    users[6] = {'enabled': None}
+    users[7] = {'enabled': 'true'}
+    users[8] = {'enabled': 1}
     sent = {}
 
     async def record_ping(bot, chat_id, lang, exercise_type, exercise_data):

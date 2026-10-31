@@ -280,8 +280,14 @@ async def check_access(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     private_user_chat = (user is not None and chat is not None
                          and chat.type == 'private' and chat.id == user.id)
-    if private_user_chat and await asyncio.to_thread(user_config.is_user_allowed, user.id):
-        return
+    if private_user_chat:
+        try:
+            if await asyncio.to_thread(user_config.is_user_allowed, user.id):
+                return
+        except Exception:
+            # Ordinary handler exceptions do not stop PTB's later handler groups.
+            # A failed access lookup must reach ApplicationHandlerStop below.
+            logger.exception('Access check failed user_id=%s chat_id=%s', user.id, chat.id)
 
     logger.info('Request rejected reason=access_denied user_id=%s chat_id=%s',
                 getattr(user, 'id', None), getattr(chat, 'id', None))

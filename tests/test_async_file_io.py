@@ -75,6 +75,7 @@ def test_scheduled_pings_start_for_multiple_users(monkeypatch):
 
     schedule = {'words': {'weekday': {clock_time(12, 0, tzinfo=utc): 'learn'}, 'weekend': {}}}
     users = {chat_id: {
+        'enabled': True,
         'ui_language': 'english', 'timezone': 'UTC', 'language': 'english',
         'exercise_types': ['words'], 'schedule': schedule,
     } for chat_id in (1, 2)}
