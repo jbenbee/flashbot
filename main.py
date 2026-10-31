@@ -12,13 +12,14 @@ import jinja2
 from flask import Flask
 
 from telegram import InputFile, Update
-from telegram.ext import Application, MessageHandler, filters, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, MessageHandler, filters, CommandHandler, CallbackQueryHandler, ContextTypes, TypeHandler
 import telegramify_markdown
 
 from decks_db import DecksDB
 from exercise import Exercise
 from learning_plan import LearningPlan
 from model_config import load_model_config
+from logging_config import USER_INTERACTION_EVENT, configure_logging
 from templates import Templates
 from utils import get_audio, generate_song_of_the_day, get_assistant_response, get_weather_forecast
 from words_progress_db import WordsProgressDB
@@ -32,12 +33,7 @@ from tempfile import TemporaryDirectory
 import logging
 
 dotenv.load_dotenv()
-load_model_config()
-
-# Disable optional logging
-logging.getLogger('httpx').setLevel(logging.WARNING)
-logging.getLogger('apscheduler').setLevel(logging.WARNING)
-logging.getLogger('telegram').setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
 
 
 app = Flask(__name__)
@@ -103,13 +99,14 @@ async def notify_user_is_busy(update, context, chat_id):
     bot = context._application.bot
     uilang = lang_map[bot.token]
     message = interface['Another request is already being processed'][uilang]
+    logger.info('Request rejected reason=user_busy chat_id=%s', chat_id)
 
     if update is not None and update.callback_query is not None:
         try:
             await update.callback_query.answer(text=message, show_alert=False)
             return
-        except Exception as e:
-            print(f'Could not send busy callback answer to {chat_id}: {e}')
+        except Exception:
+            logger.warning('Busy callback notification failed chat_id=%s', chat_id, exc_info=True)
 
     await tel_send_message(bot, chat_id, message)
 
@@ -151,13 +148,15 @@ async def handle_new_exercise(bot, chat_id, exercise):
                 # buttons = ['Discard', 'I know this word', 'Correct answer']
                 buttons = ['Discard', 'Correct answer']
         except Exception as e:
+            logger.exception('Exercise generation failed chat_id=%s type=%s', chat_id, type(exercise).__name__)
             message = f'{interface["Error"][uilang]}: {e}'
             buttons = None
 
         await tel_send_message(bot, chat_id, message, buttons=buttons)
-    except Exception as e:
+        logger.info('Exercise message sent chat_id=%s type=%s', chat_id, type(exercise).__name__)
+    except Exception:
         if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
-        print(e)
+        logger.exception('Exercise delivery failed chat_id=%s', chat_id)
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
 
@@ -177,10 +176,11 @@ async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
     uilang = lang_map[bot.token]
 
     if not try_acquire_user_slot(chat_id):
-        print(f'Skipping scheduled ping for busy user {chat_id}.')
+        logger.info('Scheduled ping skipped reason=user_busy chat_id=%s', chat_id)
         return
 
     try:
+        logger.info('Scheduled ping started chat_id=%s mode=%s', chat_id, exercise_data)
         if exercise_type == 'words':
             exercise = await lp.get_next_words_exercise(chat_id, lang, mode=exercise_data)
         else:
@@ -188,7 +188,7 @@ async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
 
         if exercise is None:
             await tel_send_message(bot, chat_id, interface['Could not create an exercise, will try again later'][uilang])
-            print(f'Could not create an exercise {exercise_type} for data {exercise_data}.')
+            logger.warning('No exercise available chat_id=%s type=%s mode=%s', chat_id, exercise_type, exercise_data)
         else:
             await handle_new_exercise(bot, chat_id, exercise)
     finally:
@@ -200,11 +200,13 @@ async def tel_send_audio(bot, chat_id, audio_file_path, title='audio.mp3'):
     path = Path(audio_file_path)
     audio_data = await asyncio.to_thread(path.read_bytes)
     await bot.send_audio(chat_id=chat_id, audio=InputFile(audio_data, filename=path.name), title=title, parse_mode='HTML')
+    logger.info('Audio sent chat_id=%s bytes=%s', chat_id, len(audio_data))
 
 async def tel_send_image(bot, chat_id, image_file_path, caption):
     path = Path(image_file_path)
     image_data = await asyncio.to_thread(path.read_bytes)
     await bot.send_photo(chat_id=chat_id, photo=InputFile(image_data, filename=path.name), caption=caption, parse_mode='HTML')
+    logger.info('Image sent chat_id=%s bytes=%s', chat_id, len(image_data))
 
 async def tel_send_message(bot, chat_id, text, buttons=None, parse_mode="MarkdownV2"):
 
@@ -230,6 +232,53 @@ async def tel_send_message(bot, chat_id, text, buttons=None, parse_mode="Markdow
 
     converted = telegramify_markdown.markdownify(text)
     await bot.send_message(chat_id, converted, reply_markup=reply_markup,  parse_mode=parse_mode)
+    logger.debug('Message sent chat_id=%s characters=%s', chat_id, len(converted))
+
+
+async def log_user_interaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Record incoming interactions before filtering, busy checks or state lookup.
+
+    Only metadata is recorded; chat text, captions and command arguments are omitted.
+    """
+    query = update.callback_query
+    message = update.effective_message
+    if query is None and message is None:
+        return
+
+    user = update.effective_user
+    chat = update.effective_chat
+    action = None
+    message_type = None
+    if query is not None:
+        kind = 'button'
+        action = query.data
+    elif message.text is not None and message.text.startswith('/'):
+        kind = 'command'
+        action = message.text.split(maxsplit=1)[0]
+    else:
+        kind = 'chat_message'
+        message_type = next((name for name in (
+            'text', 'photo', 'voice', 'audio', 'video', 'video_note', 'document',
+            'sticker', 'animation', 'contact', 'location', 'poll', 'dice',
+        ) if getattr(message, name, None)), 'other')
+
+    logger.info('User interaction', extra={
+        'event': USER_INTERACTION_EVENT, 'kind': kind,
+        'user_id': getattr(user, 'id', None), 'username': getattr(user, 'username', None),
+        'chat_id': getattr(chat, 'id', None), 'update_id': update.update_id,
+        'action': action, 'message_type': message_type,
+    })
+
+
+def register_handlers(application):
+    # PTB runs one matching handler per group. A separate earlier group lets this
+    # observer run for unknown/unsupported actions without consuming the update.
+    application.add_handler(TypeHandler(Update, log_user_interaction), group=-1)
+    application.add_error_handler(handle_application_error)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_request))
+    for command in ('add_word', 'next_test', 'next_new', 'song_of_the_day'):
+        application.add_handler(CommandHandler(command, handle_command))
+    application.add_handler(CallbackQueryHandler(handle_inline_request))
 
 
 async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -244,6 +293,7 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
+        logger.info('Command received chat_id=%s command=%s', chat_id, command.split(maxsplit=1)[0])
         if command == 'add_word':
             await handle_add_word(update, context)
         elif command == 'next_new':
@@ -252,9 +302,10 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_next_test(update, context)
         elif command == 'song_of_the_day':
             await handle_song_of_the_day(update, context)
-    except Exception as e:
+        logger.info('Command handled chat_id=%s command=%s', chat_id, command.split(maxsplit=1)[0])
+    except Exception:
         if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
-        print(e)
+        logger.exception('Command failed chat_id=%s command=%s', chat_id, command.split(maxsplit=1)[0])
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
     finally:
         release_user_slot(chat_id)
@@ -279,7 +330,7 @@ async def handle_next_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     exercise = await lp.get_next_words_exercise(chat_id, lang, mode='test')
     if exercise is None:
         await tel_send_message(bot, chat_id, interface['Could not create an exercise, please try again later'][uilang])
-        print(f'Could not create an exercise "words" for data "test".')
+        logger.warning('No exercise available chat_id=%s mode=test', chat_id)
     else:
         await handle_new_exercise(bot, chat_id, exercise)
 
@@ -295,7 +346,7 @@ async def handle_next_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     exercise = await lp.get_next_words_exercise(chat_id, lang, mode='learn')
     if exercise is None:
         await tel_send_message(bot, chat_id, interface['Could not create an exercise, please try again later'][uilang])
-        print(f'Could not create an exercise "words" for data "learn".')
+        logger.warning('No exercise available chat_id=%s mode=learn', chat_id)
     else:
         await handle_new_exercise(bot, chat_id, exercise)
 
@@ -311,12 +362,13 @@ async def handle_song_of_the_day(update: Update, context: ContextTypes.DEFAULT_T
     user_tz = ZoneInfo(user_data["timezone"])
     today = datetime.now(tz=user_tz).date()
     if user_data.get('last_song_of_the_day_date') == today.isoformat():
+        logger.info('Song rejected reason=daily_limit chat_id=%s', chat_id)
         await tel_send_message(bot, chat_id, interface['The next song of the day will be available tomorrow'][uilang])
         return
 
     # reject (not queue) if too many song generations are already running globally
     if not try_acquire_song_slot():
-        print(f'Rejecting song_of_the_day for {chat_id}: song generation capacity reached ({SONG_GEN_CONCURRENT_LIMIT}).')
+        logger.info('Song rejected reason=capacity chat_id=%s limit=%s', chat_id, SONG_GEN_CONCURRENT_LIMIT)
         await tel_send_message(bot, chat_id, interface['Too many song generations are in progress, please try again later'][uilang])
         return
 
@@ -360,13 +412,14 @@ async def handle_song_of_the_day(update: Update, context: ContextTypes.DEFAULT_T
 
 
         await asyncio.to_thread(user_config.set_user_field, chat_id, 'last_song_of_the_day_date', today.isoformat())
+        logger.info('Song delivered chat_id=%s', chat_id)
     finally:
         release_song_slot()
 
 
 async def handle_exercise_button_press(update, context, chat_id, lang, udata, exercise):
     try:
-        print(f'Received a button: {udata}')
+        logger.info('Exercise button received chat_id=%s action=%s type=%s', chat_id, udata, type(exercise).__name__)
         bot = context._application.bot
         uilang = lang_map[bot.token]
         bot = context._application.bot
@@ -445,7 +498,7 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                 exercise = await lp.get_next_words_exercise(chat_id, lang, mode)
                 if exercise is None:
                     await tel_send_message(bot, chat_id, interface['Could not create an exercise, please try again later'][uilang])
-                    print(f'Could not create an exercise "words" for data "{mode}".')
+                    logger.warning('No exercise available chat_id=%s mode=%s', chat_id, mode)
                 else:
                     await handle_new_exercise(bot, chat_id, exercise)
             elif f'Easier' == udata:
@@ -473,9 +526,9 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                 raise ValueError(f'Unknown callback data {udata}')
         else:
             raise ValueError(f'Unknown exercise type: {type(exercise)}.')
-    except Exception as e:
+    except Exception:
         if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
-        print(e)
+        logger.exception('Exercise button failed chat_id=%s action=%s', chat_id, udata)
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
 
@@ -492,6 +545,7 @@ def execute_command_message(context, chat_id, lang, command, msg):
             decks_db.add_new_word(custom_deck_id, word_id)
         words_db.save_words_db()
         decks_db.save_decks_db()
+        logger.info('User words added chat_id=%s deck_id=%s count=%s', chat_id, custom_deck_id, len(words))
 
         message_template = templates.get_template(uilang, lang, 'add_word_message')
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
@@ -528,14 +582,15 @@ async def handle_inline_request(update, context):
             if activity is not None:
                 await handle_exercise_button_press(update, context, chat_id, lang, data, activity)
             else:
+                logger.info('Button ignored reason=exercise_expired chat_id=%s', chat_id)
                 await tel_send_message(bot, chat_id, interface['Sorry, the exercise has been completed or is expired'][uilang])
         else:
             await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
-            print(f'Unexpected inline request: {data}')
+            logger.warning('Unexpected inline request chat_id=%s', chat_id)
 
-    except Exception as e:
+    except Exception:
         if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
-        print(e)
+        logger.exception('Inline request failed chat_id=%s', chat_id)
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
     finally:
         release_user_slot(chat_id)
@@ -552,7 +607,7 @@ async def handle_request(update, context):
 
     try:
         msg = update.message.text
-        print(f'{chat_id} message: {msg}')
+        logger.info('Message received chat_id=%s', chat_id)
 
         user_data = await asyncio.to_thread(user_config.get_user_data, chat_id)
         lang = user_data['language']
@@ -562,6 +617,8 @@ async def handle_request(update, context):
         if isinstance(current_activity, Exercise):
             # user responded to an exercise
             exercise = current_activity
+            logger.info('Exercise response received chat_id=%s type=%s word_id=%s',
+                        chat_id, type(exercise).__name__, getattr(exercise, 'word_id', None))
             if not exercise.is_responded:
                 
                 exercise.is_responded = True
@@ -581,23 +638,25 @@ async def handle_request(update, context):
 
                 await tel_send_message(bot, chat_id, message, buttons=buttons)
                 await asyncio.to_thread(words_progress_db.save_progress)
+                logger.info('Exercise response processed chat_id=%s type=%s quality=%s', chat_id, type(exercise).__name__, quality)
             else:
                 await tel_send_message(bot, chat_id, f'{interface["The exercise has already been answered, this message will be ignored"][uilang]}: {msg}')
-                print(f'The exercise has already been answered, this message will be ignored: {msg}')
+                logger.info('Message ignored reason=exercise_answered chat_id=%s', chat_id)
             
         elif current_activity is not None:
             # handle an input for a command
             command = current_activity
+            logger.info('Command input received chat_id=%s command=%s', chat_id, command)
             user_msg = await asyncio.to_thread(execute_command_message, context, chat_id, lang, command, msg)
             await tel_send_message(bot, chat_id, user_msg)
             running_activities.pop_activity(chat_id)
         else:
             await tel_send_message(bot, chat_id, f'{interface["No exercises or commands are running, this message will be ignored"][uilang]}: {msg}')
-            print(f'No running commands or exercises, ignore user message: {msg}')
+            logger.info('Message ignored reason=no_activity chat_id=%s', chat_id)
 
-    except Exception as e:
+    except Exception:
         if chat_id in running_activities.chat_ids: running_activities.pop_all(chat_id)
-        print(e)
+        logger.exception('Message processing failed chat_id=%s', chat_id)
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
     finally:
         release_user_slot(chat_id)
@@ -633,11 +692,15 @@ async def ping_users(context):
         async with ping_limit:
             try:
                 await ping_user(bot, user['chat_id'], user['lang'], 'words', user['exercise'])
-            except Exception as e:
+            except Exception:
                 # clean up only the failed user's activities; other users are unaffected
                 if user['chat_id'] in running_activities.chat_ids: running_activities.pop_all(user['chat_id'])
-                print(e)
+                logger.exception('Scheduled ping failed chat_id=%s', user['chat_id'])
 
+    if users_to_ping:
+        logger.info('Scheduled pings due language=%s count=%s', uilang, len(users_to_ping))
+    else:
+        logger.debug('No scheduled pings due language=%s', uilang)
     await asyncio.gather(*(send_scheduled_ping(user) for user in users_to_ping))
 
 
@@ -658,107 +721,153 @@ def nearest_start_time(ping_interval=15 * 60):
     return next_sec
 
 
+async def handle_application_error(update, context):
+    """Cover otherwise unhandled update and scheduled-job failures."""
+    error = context.error
+    chat = getattr(update, 'effective_chat', None)
+    logger.error('Unhandled Telegram error update_id=%s chat_id=%s job=%s',
+                 getattr(update, 'update_id', None), getattr(chat, 'id', None),
+                 getattr(getattr(context, 'job', None), 'name', None),
+                 exc_info=(type(error), error, error.__traceback__))
+
+
+def handle_polling_error(error):
+    logger.error('Telegram polling failed', exc_info=(type(error), error, error.__traceback__))
+
+
+def handle_async_error(loop, context):
+    error = context.get('exception')
+    logger.error('Unhandled background task error message=%s', context.get('message'),
+                 exc_info=(type(error), error, error.__traceback__) if error else None)
+
+
 async def run_apps(apps):
 
     stop_event = asyncio.Event()
     
     def signal_handler(signum, frame):
-        print('SIGINT or CTRL-C detected. Exiting gracefully')
+        logger.info('Shutdown requested signal=%s', signal.Signals(signum).name)
         stop_event.set()
     
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    for app in apps:
-        await app.initialize()
-        await app.start()
-    
+    asyncio.get_running_loop().set_exception_handler(handle_async_error)
+    initialized_apps = []
+    started_apps = []
+    polling_tasks = []
+
+    def polling_started(task):
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is not None:
+            logger.error('Telegram polling startup failed',
+                         exc_info=(type(error), error, error.__traceback__))
+            # Wake the runner so it can propagate the error and shut down cleanly.
+            stop_event.set()
+        else:
+            logger.info('Telegram polling started')
+
     try:
-        polling_tasks = [
-            asyncio.create_task(
-                app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-            ) for app in apps
-        ]
+        for app in apps:
+            await app.initialize()
+            initialized_apps.append(app)
+            await app.start()
+            started_apps.append(app)
+        for app in apps:
+            task = asyncio.create_task(app.updater.start_polling(
+                allowed_updates=Update.ALL_TYPES, error_callback=handle_polling_error))
+            task.add_done_callback(polling_started)
+            polling_tasks.append(task)
+        logger.info('Bot applications started applications=%s concurrent_updates=%s song_limit=%s',
+                    len(apps), CONCURRENT_UPDATES_LIMIT, SONG_GEN_CONCURRENT_LIMIT)
         await stop_event.wait()
+        for task in polling_tasks:
+            if task.done() and not task.cancelled():
+                task.result()
 
     finally:
 
-        for app in apps:
-            if app.updater.running:
-                await app.updater.stop()
-
+        logger.info('Bot stopping')
         for task in polling_tasks:
             if not task.done():
                 task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-
-        for app in apps:
-            await app.stop()
-            await app.shutdown()
-
+        await asyncio.gather(*polling_tasks, return_exceptions=True)
+        for app in initialized_apps:
+            try:
+                if app.updater.running:
+                    await app.updater.stop()
+                if app in started_apps:
+                    await app.stop()
+                await app.shutdown()
+            except Exception:
+                logger.exception('Application shutdown failed')
         await asyncio.to_thread(running_activities.backup)
+        logger.info('Bot stopped')
 
 
 if __name__ == '__main__':
+    configure_logging()
+    try:
+        logger.info('Bot starting')
+        load_model_config()
 
-    running_exercises_file = 'running_exercise.jb' 
-    running_activities = RunningActivities(running_exercises_file)
+        running_exercises_file = 'running_exercise.jb'
+        running_activities = RunningActivities(running_exercises_file)
 
-    user_data_root = os.getenv('CH_USER_DATA_ROOT')
-    user_data_root = 'resources' if user_data_root is None else user_data_root
-    user_data_root = Path(user_data_root)
-    words_db_path = user_data_root / 'words_db.csv'
-    decks_db_path = user_data_root / 'decks_db.csv'
-    deck_word_db_path = user_data_root / 'deck_word.csv'
-    words_progress_db_path = user_data_root / 'words_progress_db.csv'
-    user_config_path = user_data_root / 'user_config.json'
+        user_data_root = os.getenv('CH_USER_DATA_ROOT')
+        user_data_root = 'resources' if user_data_root is None else user_data_root
+        user_data_root = Path(user_data_root)
+        words_db_path = user_data_root / 'words_db.csv'
+        decks_db_path = user_data_root / 'decks_db.csv'
+        deck_word_db_path = user_data_root / 'deck_word.csv'
+        words_progress_db_path = user_data_root / 'words_progress_db.csv'
+        user_config_path = user_data_root / 'user_config.json'
 
-    TIMEZONE = os.getenv('TIMEZONE')
+        TIMEZONE = os.getenv('TIMEZONE')
 
-    words_db = WordsDB(words_db_path)
-    decks_db = DecksDB(decks_db_path, deck_word_db_path)
-    words_progress_db = WordsProgressDB(words_progress_db_path)
-    user_config = UserConfig(user_config_path)
+        words_db = WordsDB(words_db_path)
+        decks_db = DecksDB(decks_db_path, deck_word_db_path)
+        words_progress_db = WordsProgressDB(words_progress_db_path)
+        user_config = UserConfig(user_config_path)
 
-    with open('resources/interface.json', 'r', encoding='utf-8') as fp:
-        interface = json.loads(fp.read())
+        with open('resources/interface.json', 'r', encoding='utf-8') as fp:
+            interface = json.loads(fp.read())
 
-    templates = Templates(str(Path('resources/templates')))
+        templates = Templates(str(Path('resources/templates')))
 
-    lp = LearningPlan(interface, templates, words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db, user_config=user_config)
+        lp = LearningPlan(interface, templates, words_progress_db=words_progress_db, words_db=words_db, decks_db=decks_db, user_config=user_config)
 
-    # list of known exercise buttons
-    # exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next', 'Pronounce', 'Easier', 'Harder']
-    exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'Answer audio', 'Next', 'Pronounce', 'Easier', 'Harder']
+        # list of known exercise buttons
+        # exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'I know this word', 'Answer audio', 'Next', 'Pronounce', 'Easier', 'Harder']
+        exercise_buttons = ['Discard', 'Hint', 'Correct answer', 'Answer audio', 'Next', 'Pronounce', 'Easier', 'Harder']
 
-    apps = []
-    lang_map = {}
+        apps = []
+        lang_map = {}
 
-    for bidx, (token, lang) in enumerate(zip(BOT_TOKENS, BOT_LANGS)):
-        application = (
-            Application.builder()
-            .token(token)
-            .concurrent_updates(CONCURRENT_UPDATES_LIMIT)
-            .build()
-        )
+        for bidx, (token, lang) in enumerate(zip(BOT_TOKENS, BOT_LANGS)):
+            application = (
+                Application.builder()
+                .token(token)
+                .concurrent_updates(CONCURRENT_UPDATES_LIMIT)
+                .build()
+            )
 
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_request))
-        application.add_handler(CommandHandler("add_word", handle_command))
-        application.add_handler(CommandHandler("next_test", handle_command))
-        application.add_handler(CommandHandler("next_new", handle_command))
-        application.add_handler(CommandHandler("song_of_the_day", handle_command))
-        application.add_handler(CallbackQueryHandler(handle_inline_request))
+            register_handlers(application)
 
-        job_queue = application.job_queue
-        ping_interval = 15 * 60
-        first_ping = nearest_start_time(ping_interval)
-        print(f"First ping scheduled in: {first_ping} sec")
-        
-        job_queue.run_repeating(ping_users, interval=ping_interval, first=first_ping, job_kwargs={'misfire_grace_time': None})
-        apps.append(application)
-        lang_map[token] = lang
+            job_queue = application.job_queue
+            ping_interval = 15 * 60
+            first_ping = nearest_start_time(ping_interval)
+            logger.info('Ping job scheduled language=%s first_seconds=%s interval_seconds=%s', lang, first_ping, ping_interval)
 
-    asyncio.run(run_apps(apps))
+            job_queue.run_repeating(ping_users, interval=ping_interval, first=first_ping, job_kwargs={'misfire_grace_time': None})
+            apps.append(application)
+            lang_map[token] = lang
+
+        asyncio.run(run_apps(apps))
+    except Exception:
+        logger.exception('Bot terminated with an error')
+        raise SystemExit(1)
+    finally:
+        logging.shutdown()

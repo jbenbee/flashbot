@@ -1,9 +1,13 @@
+import logging
 import copy
 import json
 import threading
 
 import numpy as np
 import pandas as pd
+
+
+logger = logging.getLogger(__name__)
 
 
 class DecksDB:
@@ -17,6 +21,7 @@ class DecksDB:
         self.deck_word['deck_id'] = self.deck_word['deck_id'].astype(int)
         self.deck_word['word_id'] = self.deck_word['word_id'].astype(int)
         self._lock = threading.Lock()
+        logger.info('Decks loaded decks=%s memberships=%s', len(self.decks), len(self.deck_word))
 
     def get_decks_df(self):
         with self._lock:
@@ -51,12 +56,14 @@ class DecksDB:
             new_deck_id = len(self.decks)
             self.decks.loc[new_deck_id] = \
                 dict(id=len(self.decks), owner=chat_id, name='custom', language=lang, tags=np.nan)
+            logger.info('Custom deck created chat_id=%s deck_id=%s language=%s', chat_id, new_deck_id, lang)
             return new_deck_id
 
     def save_decks_db(self):
         with self._lock:
             self.decks.to_csv(self.decks_path, index=False)
             self.deck_word.to_csv(self.deck_word_db_path, index=False)
+            logger.info('Decks saved decks=%s memberships=%s', len(self.decks), len(self.deck_word))
 
     def add_new_word(self, deck_id: int, word_id: int):
         with self._lock:
@@ -65,4 +72,5 @@ class DecksDB:
                 return
             self.deck_word.loc[len(self.deck_word)] = \
                 dict(deck_id=deck_id, word_id=word_id)
+            logger.info('Word added to deck deck_id=%s word_id=%s', deck_id, word_id)
 

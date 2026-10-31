@@ -1,3 +1,4 @@
+import logging
 import os
 import threading
 
@@ -8,12 +9,16 @@ import pandas as pd
 from exercise import Exercise
 
 
+logger = logging.getLogger(__name__)
+
+
 class RunningActivities:
     def __init__(self, fpath):
         self.running_exercises_file = fpath
         if os.path.exists(self.running_exercises_file):
             self._running_activities = joblib.load(filename=self.running_exercises_file)
             os.remove(self.running_exercises_file)
+            logger.info('Activities restored users=%s', len(self._running_activities))
         else:
             self._running_activities = dict()
         self._lock = threading.Lock()
@@ -36,6 +41,7 @@ class RunningActivities:
                 self._running_activities[chat_id].append(activity)
 
             assert len(self._running_activities[chat_id]) <= 2
+            logger.debug('Activity set chat_id=%s type=%s', chat_id, type(activity).__name__)
 
     def pop_activity(self, chat_id):
         with self._lock:
@@ -47,6 +53,7 @@ class RunningActivities:
     def pop_all(self, chat_id):
         with self._lock:
             self._running_activities[chat_id] = []
+            logger.info('Activities cleared chat_id=%s', chat_id)
 
     @property
     def chat_ids(self):
@@ -72,3 +79,4 @@ class RunningActivities:
     def backup(self):
         with self._lock:
             joblib.dump(self._running_activities, filename=self.running_exercises_file)
+            logger.info('Activities backed up users=%s', len(self._running_activities))

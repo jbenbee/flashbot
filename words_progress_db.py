@@ -1,3 +1,4 @@
+import logging
 import os.path
 import threading
 from typing import Optional
@@ -5,6 +6,9 @@ from typing import Optional
 import pandas as pd
 
 from item import Item
+
+
+logger = logging.getLogger(__name__)
 
 
 class WordsProgressDB:
@@ -19,6 +23,7 @@ class WordsProgressDB:
         self.progress_df['word_id'] = self.progress_df['word_id'].astype(int)
         self.progress_df['chat_id'] = self.progress_df['chat_id'].astype(int)
         self._lock = threading.Lock()
+        logger.info('Progress loaded rows=%s', len(self.progress_df))
 
     def get_progress_df(self):
         with self._lock:
@@ -27,6 +32,7 @@ class WordsProgressDB:
     def save_progress(self):
         with self._lock:
             self.progress_df.to_csv(self.db_path, index=False)
+            logger.info('Progress saved rows=%s', len(self.progress_df))
 
     def _add_word_to_progress(self, chat_id, word_id):
         # caller must hold self._lock
@@ -37,6 +43,7 @@ class WordsProgressDB:
     def add_word_to_progress(self, chat_id, word_id):
         with self._lock:
             self._add_word_to_progress(chat_id, word_id)
+            logger.info('Word learning started chat_id=%s word_id=%s', chat_id, word_id)
 
     def ignore_word(self, chat_id, word_id):
         with self._lock:
@@ -49,6 +56,7 @@ class WordsProgressDB:
             if self.progress_df[mask].shape[0] != 1:
                 raise ValueError('Number of rows satisfying the condition must be exactly 1.')
             self.progress_df.loc[mask, 'to_ignore'] = True
+            logger.info('Word ignored chat_id=%s word_id=%s', chat_id, word_id)
 
     def get_word_progress(self, chat_id, word_id) -> Optional[Item]:
         with self._lock:
@@ -77,8 +85,12 @@ class WordsProgressDB:
             self.progress_df.loc[mask, 'next_review_date'] = item.next_review_date
             self.progress_df.loc[mask, 'last_review_date'] = item.last_review_date
             self.progress_df.loc[mask, 'last_interval'] = item.last_interval
+            logger.info('Word progress updated chat_id=%s word_id=%s repetitions=%s next_review=%s',
+                        chat_id, word_id, item.num_reps, item.next_review_date)
 
     def remove_progress(self, chat_id, word_ids):
         with self._lock:
             mask = (self.progress_df['chat_id'] == chat_id) & (self.progress_df['word_id'].isin(word_ids))
+            removed = int(mask.sum())
             self.progress_df = self.progress_df[~mask]
+            logger.info('Word progress reset chat_id=%s count=%s', chat_id, removed)

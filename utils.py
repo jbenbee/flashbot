@@ -2,6 +2,7 @@ import asyncio
 import base64
 from copy import deepcopy
 import json
+import logging
 import os
 from pathlib import Path
 import random
@@ -9,7 +10,11 @@ import wave
 import httpx
 import openai
 from model_config import load_model_config
+from logging_config import logged_operation
 
+logger = logging.getLogger(__name__)
+
+@logged_operation
 async def get_assistant_response(interface, query, uilang, model_base=None, model_fallback=None, response_format=None, validation_cls=None):
     """Generate text through Responses, accepting the callers' existing format specs."""
 
@@ -35,7 +40,7 @@ async def get_assistant_response(interface, query, uilang, model_base=None, mode
                 else:
                     text_config['format'] = response_format
             try:
-                print(f'Sending a request to chatgpt ({model})...')
+                logger.info('Assistant request model=%s attempt=%s max_attempts=%s', model, nattempts, max_attempts)
                 response = await client.responses.create(
                     model=model,
                     instructions=interface["You are a great language teacher"][uilang],
@@ -44,23 +49,24 @@ async def get_assistant_response(interface, query, uilang, model_base=None, mode
                 )
                 break
             except openai.OpenAIError as e:
-                print(e)
+                logger.warning('Assistant request failed model=%s attempt=%s max_attempts=%s error_type=%s',
+                               model, nattempts, max_attempts, type(e).__name__, exc_info=True)
                 if nattempts == max_attempts:
                     raise ValueError('The model could not respond in required format') from e
                 await asyncio.sleep(assistant.retry_delay_seconds * nattempts)
     finally:
         await client.close()
-    print('Done.')
 
     if any(
         content.type == 'refusal'
         for item in response.output if item.type == 'message'
         for content in item.content
     ):
-        print('The assistant refused to respond.')
+        logger.warning('Assistant response refused model=%s', model)
         raise ValueError('The model refused to respond')
 
     if response.status != 'completed' or not response.output_text:
+        logger.warning('Assistant response incomplete model=%s status=%s', model, response.status)
         raise ValueError('The model could not respond in required format')
 
     if validation_cls is not None:
@@ -91,17 +97,20 @@ async def get_weather_forecast(tz):
         min_temp = today['mintempC']
         max_temp = today['maxtempC']
 
+        logger.info('Weather forecast fetched')
         return f'{condition}, {temp}°C (today: {min_temp}-{max_temp}°C)'
-    except Exception as e:
-        print(f'Could not get the weather forecast: {e}')
+    except Exception:
+        logger.warning('Weather forecast unavailable; continuing without weather', exc_info=True)
         return None
 
 
+@logged_operation
 async def get_audio(query, lang, file_path):
     """Read the supplied text aloud with Realtime and save a PCM WAV file."""
 
     config = load_model_config()
     speech = config.speech
+    logger.info('Speech requested model=%s language=%s', speech.model, lang)
     session = deepcopy(speech.session)
     session['instructions'] = session['instructions'].replace('{lang}', lang)
     openai_key = os.getenv('OPENAI_KEY')
@@ -142,6 +151,7 @@ async def get_audio(query, lang, file_path):
     if not pcm_data or len(pcm_data) % 2:
         raise ValueError('The model returned empty or invalid PCM audio')
     await asyncio.to_thread(_write_pronunciation_wav, file_path, pcm_data)
+    logger.info('Speech saved pcm_bytes=%s', len(pcm_data))
 
 
 def _write_pronunciation_wav(file_path, pcm_data):
@@ -151,6 +161,7 @@ def _write_pronunciation_wav(file_path, pcm_data):
         audio_file.setframerate(24000)
         audio_file.writeframes(pcm_data)
 
+@logged_operation
 async def download_file(client, aurl, fpath):
     headers = {
         "User-Agent": (
@@ -171,9 +182,10 @@ async def download_file(client, aurl, fpath):
         finally:
             await asyncio.to_thread(file.close)
 
+@logged_operation
 async def generate_song_of_the_day(prompt, dirpath):
-    print(f'Generating song of the day')
     song = load_model_config().song
+    logger.info('Song generation requested model=%s', song.model)
     BASE_URL = "https://api.sunoapi.org"
     url = f"{BASE_URL}/api/v1/generate"
 
@@ -193,7 +205,7 @@ async def generate_song_of_the_day(prompt, dirpath):
         response.raise_for_status()
         task_id = response.json()['data']["taskId"]
 
-        print(f'Sent generation request, waiting...')
+        logger.info('Song generation submitted task_id=%s', task_id)
 
         url = f"{BASE_URL}/api/v1/generate/record-info"
         n_iter = 1
@@ -205,7 +217,7 @@ async def generate_song_of_the_day(prompt, dirpath):
             status = data['data']['status']
 
             if status == "SUCCESS":
-                print(f'Song generation complete')
+                logger.info('Song generation succeeded task_id=%s', task_id)
 
                 audio_url_field = 'audioUrl'
                 audio_data = [{'audio_url': d[audio_url_field], 'audio_file_path': dirpath / f'f{didx}.mp3'}
@@ -220,7 +232,7 @@ async def generate_song_of_the_day(prompt, dirpath):
 
                 return data
             elif status == "PENDING" or 'SUCCESS' in status:
-                print("Still generating...")
+                logger.debug('Song generation pending task_id=%s attempt=%s status=%s', task_id, n_iter, status)
                 await asyncio.sleep(song.poll_interval_seconds * n_iter)
                 n_iter += 1
                 if n_iter > song.max_poll_attempts:

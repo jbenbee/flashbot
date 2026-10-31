@@ -1,9 +1,13 @@
+import logging
 import copy
 import itertools
 import json
 import threading
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+
+logger = logging.getLogger(__name__)
 
 
 class UserConfig:
@@ -26,6 +30,7 @@ class UserConfig:
                     {datetime.strptime(x, '%H:%M').time().replace(tzinfo=user_tz): data for x, data in chat_config['schedule'][exercise][day].items()} \
                     if day in self._user_data[chat_id]['schedule'][exercise].keys() else {}
         self._lock = threading.Lock()
+        logger.info('User configuration loaded users=%s', len(self._user_data))
 
     def get_all_user_data(self):
         with self._lock:
@@ -49,3 +54,4 @@ class UserConfig:
             self._user_data_orig[str(chat_id)][key] = value
             with open(self.data_path, 'w', encoding='utf-8') as fp:
                 json.dump(self._user_data_orig, fp, ensure_ascii=False, indent=4)
+            logger.info('User configuration saved chat_id=%s field=%s', chat_id, key)

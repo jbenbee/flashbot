@@ -1,3 +1,4 @@
+import logging
 import asyncio
 import math
 from datetime import datetime, timedelta
@@ -12,6 +13,9 @@ from exercise import Exercise
 from item import Item
 from utils import get_assistant_response
 from words_exercise import FlashcardExercise, WordsExerciseLearn, WordsExerciseTest
+
+
+logger = logging.getLogger(__name__)
 
 
 class LearningPlan:
@@ -137,6 +141,7 @@ class LearningPlan:
                                           num_reps=row_item['num_reps'].item(), interface=self.interface,
                                           templates=self.templates)
 
+        logger.info('Exercise selected chat_id=%s word_id=%s mode=%s', chat_id, exercise.word_id, mode)
         return exercise
 
     def get_due_today(self, chat_id: str, lang: str) -> List[str]:
@@ -252,6 +257,7 @@ class LearningPlan:
         return lang_seen_words.shape[0] < len(user_words)
 
     async def add_words(self, chat_id, lang):
+        logger.info('Word generation started chat_id=%s language=%s', chat_id, lang)
         context = await asyncio.to_thread(self._get_add_words_context, chat_id, lang)
         if context is None:
             return None
@@ -290,6 +296,7 @@ class LearningPlan:
                 break
 
         await asyncio.to_thread(self._add_generated_words, chat_id, lang, new_words)
+        logger.info('Generated words added chat_id=%s count=%s', chat_id, len(new_words))
 
     def _get_add_words_context(self, chat_id, lang):
         user_data = self.user_config.get_user_data(chat_id)
