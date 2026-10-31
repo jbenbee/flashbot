@@ -4,19 +4,24 @@ import json
 import os
 from pathlib import Path
 import random
+import wave
 import httpx
 import openai
 
 async def get_assistant_response(interface, query, uilang, model_base, model_substitute, response_format=None, validation_cls=None):
+    """Generate text through Responses, accepting the callers' existing format specs."""
+
+    text_config = {}
+    if response_format is not None:
+        if response_format['type'] == 'json_schema':
+            text_config['format'] = {'type': 'json_schema', **response_format['json_schema']}
+        else:
+            text_config['format'] = response_format
 
     openai_key = os.getenv('OPENAI_KEY')
     client = openai.AsyncOpenAI(api_key=openai_key, timeout=20.0, max_retries=0)
 
     nattempts = 0
-    messages = [
-                {"role": "system", "content": interface["You are a great language teacher"][uilang]},
-                {"role": "user", "content": query},
-            ]
     model = model_base
     max_attempts = 3
     try:
@@ -24,10 +29,12 @@ async def get_assistant_response(interface, query, uilang, model_base, model_sub
             nattempts += 1
             try:
                 print(f'Sending a request to chatgpt ({model})...')
-                response = await client.chat.completions.create(
+                response = await client.responses.create(
                     model=model,
-                    messages=messages,
-                    response_format=response_format
+                    instructions=interface["You are a great language teacher"][uilang],
+                    input=query,
+                    text=text_config,
+                    store=False,
                 )
                 break
             except openai.OpenAIError as e:
@@ -41,14 +48,21 @@ async def get_assistant_response(interface, query, uilang, model_base, model_sub
         await client.close()
     print('Done.')
 
-    if response.choices[0].message.refusal:
+    if any(
+        content.type == 'refusal'
+        for item in response.output if item.type == 'message'
+        for content in item.content
+    ):
         print('The assistant refused to respond.')
         raise ValueError('The model refused to respond')
 
+    if response.status != 'completed' or not response.output_text:
+        raise ValueError('The model could not respond in required format')
+
     if validation_cls is not None:
-        validated_resp = validation_cls.model_validate_json(response.choices[0].message.content)
+        validated_resp = validation_cls.model_validate_json(response.output_text)
     else:
-        validated_resp = response.choices[0].message.content
+        validated_resp = response.output_text
 
     return validated_resp
 
@@ -80,6 +94,7 @@ async def get_weather_forecast(tz):
 
 
 async def get_audio(query, lang, file_path):
+    """Read the supplied text aloud with Realtime and save a PCM WAV file."""
 
     openai_key = os.getenv('OPENAI_KEY')
     if openai_key is None:
@@ -87,23 +102,59 @@ async def get_audio(query, lang, file_path):
         openai_key = key_file.splitlines()[0].strip()
     client = openai.AsyncOpenAI(api_key=openai_key, timeout=20.0, max_retries=0)
 
+    audio_chunks = []
     try:
-        completion = await client.chat.completions.create(
-            model="gpt-4o-audio-preview",
-            modalities=["text", "audio"],
-            audio={"voice": "alloy", "format": "wav"},
-            messages=[
-                {
-                    "role": "user",
-                    "content": f'Pronounce this phrase {lang}: {query}'
-                }
-            ]
-        )
+        # HTTP timeouts do not bound a WebSocket session's event stream.
+        async with asyncio.timeout(20.0):
+            async with client.realtime.connect(model='gpt-realtime-2.1-mini') as connection:
+                await connection.session.update(session={
+                    'type': 'realtime',
+                    'output_modalities': ['audio'],
+                    'instructions': (
+                        f"Read the user's text aloud exactly as written in {lang}. "
+                        'Do not translate, answer, or add commentary.'
+                    ),
+                    'audio': {
+                        'input': {'turn_detection': None},
+                        'output': {
+                            'voice': 'alloy',
+                            'format': {'type': 'audio/pcm', 'rate': 24000},
+                        },
+                    },
+                })
+                await connection.conversation.item.create(item={
+                    'type': 'message',
+                    'role': 'user',
+                    'content': [{'type': 'input_text', 'text': query}],
+                })
+                await connection.response.create()
+
+                async for event in connection:
+                    if event.type == 'response.output_audio.delta':
+                        audio_chunks.append(base64.b64decode(event.delta, validate=True))
+                    elif event.type == 'error':
+                        raise openai.OpenAIError(f'Speech generation failed: {event.error.message}')
+                    elif event.type == 'response.done':
+                        if event.response.status != 'completed':
+                            raise ValueError(f'Speech generation ended: {event.response.status}')
+                        break
+                else:
+                    raise ValueError('Speech connection closed before the response completed')
     finally:
         await client.close()
 
-    wav_bytes = await asyncio.to_thread(base64.b64decode, completion.choices[0].message.audio.data)
-    await asyncio.to_thread(Path(file_path).write_bytes, wav_bytes)
+    pcm_data = b''.join(audio_chunks)
+    if not pcm_data or len(pcm_data) % 2:
+        raise ValueError('The model returned empty or invalid PCM audio')
+    await asyncio.to_thread(_write_pronunciation_wav, file_path, pcm_data)
+
+
+def _write_pronunciation_wav(file_path, pcm_data):
+    with wave.open(str(file_path), 'wb') as audio_file:
+        audio_file.setnchannels(1)
+        audio_file.setsampwidth(2)
+        audio_file.setframerate(24000)
+        audio_file.writeframes(pcm_data)
 
 async def download_file(client, aurl, fpath):
     headers = {

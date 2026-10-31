@@ -427,14 +427,14 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
             #         await tel_send_message(bot, chat_id, mes)
 
             elif f'Answer audio' == udata:
-                file_path = f'{chat_id}_{exercise.uid}.mp3'
+                file_path = f'{chat_id}_{exercise.uid}.wav'
                 try:
                     await get_audio(exercise.correct_answer(), exercise.lang, file_path)
                     await tel_send_audio(bot, chat_id, file_path)
                 finally:
                     await asyncio.to_thread(Path(file_path).unlink, missing_ok=True)
             elif f'Pronounce' == udata:
-                file_path = f'{chat_id}_{exercise.uid}.mp3'
+                file_path = f'{chat_id}_{exercise.uid}.wav'
                 try:
                     await get_audio(exercise.word, exercise.lang, file_path)
                     await tel_send_audio(bot, chat_id, file_path)

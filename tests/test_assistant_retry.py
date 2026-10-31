@@ -14,7 +14,7 @@ def test_third_attempt_success_uses_substitute_model(monkeypatch):
         models.append(model)
         if len(models) < 3:
             raise openai.OpenAIError('transient failure')
-        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(refusal=None, content='answer'))])
+        return SimpleNamespace(status='completed', output=[], output_text='answer')
 
     async def no_sleep(_):
         pass
@@ -23,7 +23,7 @@ def test_third_attempt_success_uses_substitute_model(monkeypatch):
         pass
 
     monkeypatch.setattr(utils.openai, 'AsyncOpenAI', lambda **kwargs: SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=create)), close=close))
+        responses=SimpleNamespace(create=create), close=close))
     monkeypatch.setattr(utils.asyncio, 'sleep', no_sleep)
 
     result = asyncio.run(utils.get_assistant_response(
@@ -48,7 +48,7 @@ def test_three_failed_attempts_raise_value_error(monkeypatch):
         pass
 
     monkeypatch.setattr(utils.openai, 'AsyncOpenAI', lambda **kwargs: SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=create)), close=close))
+        responses=SimpleNamespace(create=create), close=close))
     monkeypatch.setattr(utils.asyncio, 'sleep', no_sleep)
 
     with pytest.raises(ValueError, match='could not respond'):

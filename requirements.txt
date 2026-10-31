@@ -1,7 +1,7 @@
 requests
 httpx
 flask
-openai
+openai[realtime]>=3.42.0
 pytest
 joblib
 pandas
