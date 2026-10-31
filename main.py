@@ -160,18 +160,6 @@ async def handle_new_exercise(bot, chat_id, exercise):
         await tel_send_message(bot, chat_id, interface['Something went terribly wrong, please try again or notify the admin'][uilang])
 
 
-# async def send_song_of_the_day(bot, chat_id, prompt):
-#     with TemporaryDirectory() as fp:
-#         song_data = await generate_song_of_the_day(prompt=prompt, dirpath=Path(fp))
-
-#         lyrics = '\n'.join([f'> {line}' for line in song_data['lyrics'].split('\n')])
-
-#         await tel_send_image(bot, chat_id, song_data['img_path'], song_data['title'])
-#         await tel_send_message(bot, chat_id, lyrics)
-#         await tel_send_audio(bot, chat_id, song_data['audio_data'][0]['audio_file_path'], title=song_data['title'] + ' (1)')
-#         await tel_send_audio(bot, chat_id, song_data['audio_data'][1]['audio_file_path'], title=song_data['title'] + ' (2)')
-
-
 async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
     if not await asyncio.to_thread(user_config.is_user_allowed, chat_id):
         logger.info('Scheduled ping skipped reason=access_denied chat_id=%s', chat_id)
@@ -388,35 +376,46 @@ async def handle_next_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_song_of_the_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.message.chat_id
-    bot = context._application.bot
+    await send_song_of_the_day(context._application.bot, update.message.chat_id)
+
+
+async def send_song_of_the_day(bot, chat_id, *, scheduled=False):
+    """Generate and deliver a song while the caller holds the user's slot."""
     uilang = lang_map[bot.token]
     user_data = await asyncio.to_thread(user_config.get_user_data, chat_id)
     lang = user_data['language']
 
-    # the song of the day can only be generated once per day (based on the user's local date)
     user_tz = ZoneInfo(user_data["timezone"])
-    today = datetime.now(tz=user_tz).date()
+    user_now = datetime.now(tz=user_tz)
+    today = user_now.date()
+    genres = user_data.get('genres', [])
+    if scheduled:
+        if (user_data.get('song_of_the_day') is not True
+                or user_data.get('ui_language', 'english') != uilang or not genres):
+            return
+        delivery_time = datetime.strptime(user_data.get('song_of_the_day_time', '09:00'), '%H:%M').time()
+        if user_now.time() < delivery_time:
+            return
+
+    # Manual requests and scheduled delivery share the user's local daily limit.
     if user_data.get('last_song_of_the_day_date') == today.isoformat():
         logger.info('Song rejected reason=daily_limit chat_id=%s', chat_id)
-        await tel_send_message(bot, chat_id, interface['The next song of the day will be available tomorrow'][uilang])
+        if not scheduled:
+            await tel_send_message(bot, chat_id, interface['The next song of the day will be available tomorrow'][uilang])
         return
 
     # reject (not queue) if too many song generations are already running globally
     if not try_acquire_song_slot():
         logger.info('Song rejected reason=capacity chat_id=%s limit=%s', chat_id, SONG_GEN_CONCURRENT_LIMIT)
-        await tel_send_message(bot, chat_id, interface['Too many song generations are in progress, please try again later'][uilang])
+        if not scheduled:
+            await tel_send_message(bot, chat_id, interface['Too many song generations are in progress, please try again later'][uilang])
         return
 
     try:
-        await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
+        if not scheduled:
+            await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
 
-        # with open('resources/song_genres.json', 'r') as fp:
-        #     genres = json.loads(fp.read())
-        genres = user_data.get('genres', [])
-
-        genre_prompt = ''
-        genres_sub = random.sample(genres, min(5, len(genres))) if genres else []
+        genre = random.choice(genres) if genres else ''
 
         # sample 5 words that the user is currently learning
         learning_words = await asyncio.to_thread(lp.get_due_today, chat_id, lang) or []
@@ -426,15 +425,21 @@ async def handle_song_of_the_day(update: Update, context: ContextTypes.DEFAULT_T
         # get the current time and weather at the user's location to tune the song to them
         local_time = datetime.now(tz=user_tz).strftime('%A, %d %B %Y, %H:%M')
         weather = await get_weather_forecast(user_tz)
+        personal_info = (user_data.get('personal_info') or '').strip()
 
         # ask the LLM for a song idea containing all the sampled words
         message_template = templates.get_template('english', lang, 'song_of_the_day_query')
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
-        query = template.render(lang=interface[lang][uilang], words_str=', '.join(sampled_words), genres=', '.join(genres_sub), weather=weather, local_time=local_time)
+        query = template.render(lang=interface[lang][uilang], words_str=', '.join(sampled_words), genres=genre, weather=weather, local_time=local_time, personal_info=personal_info)
 
         llm_prompt = await get_assistant_response(interface, query, uilang=uilang)
 
-        prompt = f"{llm_prompt}\n{genre_prompt}"
+        # Pass the chosen genre directly to the music generator as well, so the
+        # assistant cannot lose the user's preference when describing the idea.
+        prompt = f'{llm_prompt}\nThe song must be in the {genre} genre.' if genre else llm_prompt
+        if personal_info:
+            prompt += (f'\nListener background: {json.dumps(personal_info, ensure_ascii=False)}. '
+                       'Use these personal details as inspiration for the theme and lyrics, weaving them in naturally.')
 
         with TemporaryDirectory() as fp:
             song_data = await generate_song_of_the_day(prompt=prompt, dirpath=Path(fp))
@@ -451,6 +456,37 @@ async def handle_song_of_the_day(update: Update, context: ContextTypes.DEFAULT_T
         logger.info('Song delivered chat_id=%s', chat_id)
     finally:
         release_song_slot()
+
+
+async def send_scheduled_song(bot, chat_id):
+    if not try_acquire_user_slot(chat_id):
+        logger.info('Scheduled song skipped reason=user_busy chat_id=%s', chat_id)
+        return
+    try:
+        if not await asyncio.to_thread(user_config.is_user_allowed, chat_id):
+            return
+        await send_song_of_the_day(bot, chat_id, scheduled=True)
+    except Exception:
+        logger.exception('Scheduled song failed chat_id=%s', chat_id)
+    finally:
+        release_user_slot(chat_id)
+
+
+async def send_daily_songs(context):
+    """Check every minute; missed/busy deliveries remain due until local midnight."""
+    bot = context._application.bot
+    uilang = lang_map[bot.token]
+    users = await asyncio.to_thread(user_config.get_all_user_data)
+    limit = asyncio.Semaphore(SONG_GEN_CONCURRENT_LIMIT)
+
+    async def deliver(chat_id):
+        async with limit:
+            await send_scheduled_song(bot, chat_id)
+
+    await asyncio.gather(*(deliver(chat_id) for chat_id, data in users.items()
+                           if chat_id > 0 and data.get('enabled') is True
+                           and data.get('song_of_the_day') is True
+                           and data.get('ui_language', 'english') == uilang))
 
 
 async def handle_exercise_button_press(update, context, chat_id, lang, udata, exercise):
@@ -899,6 +935,8 @@ if __name__ == '__main__':
             logger.info('Ping job scheduled language=%s first_seconds=%s interval_seconds=%s', lang, first_ping, ping_interval)
 
             job_queue.run_repeating(ping_users, interval=ping_interval, first=first_ping, job_kwargs={'misfire_grace_time': None})
+            job_queue.run_repeating(send_daily_songs, interval=60, first=10,
+                                    job_kwargs={'misfire_grace_time': None})
             apps.append(application)
             lang_map[token] = lang
 

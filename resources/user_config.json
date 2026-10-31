@@ -8,6 +8,10 @@
     "show_words_due": 1,
     "n_flashcards": 5,
     "exercise_types": ["words"],
+    "song_of_the_day": false,
+    "song_of_the_day_time": "09:00",
+    "genres": ["jazz", "pop"],
+    "personal_info": "",
     "schedule": {
       "words": {
         "weekday": {"10:00": "learn", "12:00": "test", "14:00": "test_translation", "16:00": "learn", "18:00": "test_flashcard", "20:00": "test"},
@@ -22,6 +26,10 @@
     "timezone": "America/Los_Angeles",
     "level": "A1",
     "exercise_types": ["words"],
+    "song_of_the_day": false,
+    "song_of_the_day_time": "09:00",
+    "genres": ["rock", "pop"],
+    "personal_info": "",
     "schedule": {
       "words": {
         "weekday": {"11:00": "learn", "14:00": "test", "17:00": "test", "20:00": "learn", "22:00": "test"},
