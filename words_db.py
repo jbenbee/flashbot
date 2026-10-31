@@ -27,13 +27,15 @@ class WordsDB:
 
     def add_new_word(self, word, lang):
         with self._lock:
-            word_data = self.words_df.loc[(self.words_df['lang'] == lang) & (self.words_df['word'] == word)]
+            word_data = self.words_df.loc[
+                (self.words_df['lang'] == lang) &
+                (self.words_df['word'].str.casefold() == word.casefold())
+            ]
             if word_data.shape[0] == 0:
                 word_id = int(self.words_df['id'].max() + 1)
                 self.words_df.loc[len(self.words_df)] = {'id': word_id, 'word': word,
                                                          'lang': lang, 'tags': np.nan}
-            elif word_data.shape[0] == 1:
-                word_id = int(word_data['id'].item())
             else:
-                raise ValueError(f'The same word "{word}" appears >1 time in the database: {word_data}')
+                # Reuse the first entry even if older data has case variants.
+                word_id = int(word_data['id'].iloc[0])
             return word_id

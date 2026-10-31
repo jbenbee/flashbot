@@ -60,6 +60,9 @@ class DecksDB:
 
     def add_new_word(self, deck_id: int, word_id: int):
         with self._lock:
+            if ((self.deck_word['deck_id'] == deck_id) &
+                    (self.deck_word['word_id'] == word_id)).any():
+                return
             self.deck_word.loc[len(self.deck_word)] = \
                 dict(deck_id=deck_id, word_id=word_id)
 

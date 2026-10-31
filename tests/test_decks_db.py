@@ -26,3 +26,18 @@ def test_add_new_word_to_deck(decks_db):
 
     assert 7 in decks_db.get_deck_words(0)
     assert not decks_db._lock.locked()
+
+
+def test_add_existing_word_to_deck_is_noop(decks_db):
+    decks_db.add_new_word(0, 1)
+
+    assert decks_db.get_deck_words(0) == [1]
+    assert not decks_db._lock.locked()
+
+
+def test_add_existing_word_to_another_deck(decks_db):
+    deck_id = decks_db.add_custom_deck('42', 'english')
+    decks_db.add_new_word(deck_id, 1)
+
+    assert decks_db.get_deck_words(deck_id) == [1]
+    assert decks_db.get_deck_words(0) == [1]
