@@ -6,3 +6,5 @@ __pycache__
 run_en.sh
 api_keys
 personal_files
+.venv/
+.pytest_cache/

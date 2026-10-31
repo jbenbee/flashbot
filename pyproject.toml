@@ -1,0 +1,30 @@
+[project]
+name = "flashbot"
+version = "0.1.0"
+description = "A Telegram bot for learning words in a new language"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "evaluate",
+    "flask",
+    "httpx",
+    "jinja2",
+    "joblib",
+    "numpy",
+    "openai[realtime]>=3.42.0",
+    "pandas",
+    "pydantic",
+    "python-dotenv",
+    "python-telegram-bot[ext]",
+    "pyyaml>=6.0",
+    "requests",
+    "rouge-score",
+    "telegramify-markdown",
+    "waitress",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3.5"]
+
+[tool.uv]
+package = false
