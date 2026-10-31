@@ -1,3 +1,4 @@
+import asyncio
 import math
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -38,9 +39,12 @@ class LearningPlan:
         return max(1.3, new_ef)
     
     async def get_next_words_exercise(self, chat_id: str, lang: str, mode: Optional[str]=None) -> Optional[Exercise]:
-        
-        if not self.has_enough_words(chat_id, lang):
+        if not await asyncio.to_thread(self.has_enough_words, chat_id, lang):
             await self.add_words(chat_id, lang)
+
+        return await asyncio.to_thread(self._select_next_words_exercise, chat_id, lang, mode)
+
+    def _select_next_words_exercise(self, chat_id: str, lang: str, mode: Optional[str]) -> Optional[Exercise]:
 
         now = datetime.now().date()
 
@@ -104,6 +108,8 @@ class LearningPlan:
                 row_item = user_words_progress.iloc[0]
         else:
 
+            # Keep unseen words even when another user has progress for them.
+            progress_df = progress_df[progress_df['chat_id'] == chat_id]
             user_words_progress = pd.merge(progress_df, deck_words_df, how='right', left_on='word_id', right_on='id', sort=False)
             user_words_progress = user_words_progress[user_words_progress['to_ignore'].isin([False, np.nan])]
 
@@ -247,25 +253,11 @@ class LearningPlan:
         return lang_seen_words.shape[0] < len(user_words)
 
     async def add_words(self, chat_id, lang):
-
-        user_data = self.user_config.get_user_data(chat_id)
-        uilang = user_data['ui_language']
-
-        words_df = self.words_db.get_words_df()
-
-        if words_df.shape[0] == 0:
+        context = await asyncio.to_thread(self._get_add_words_context, chat_id, lang)
+        if context is None:
             return None
-
-        progress_df = self.progress_db.get_progress_df()
-        progress_words_df = pd.merge(progress_df, words_df, how='outer', left_on='word_id',
-                                     right_on='id', sort=False)
-        not_ignored_words = progress_words_df.loc[(progress_words_df['lang'] == lang.lower()) & (progress_words_df['chat_id'] == chat_id) &
-                                                  progress_words_df['to_ignore'].isin([False, np.nan])]
-
-        if not_ignored_words.shape[0] > 0:
-            user_words_str = ', '.join(not_ignored_words['word'].to_list())
-        else:
-            user_words_str = 'No words learned yet.'
+        user_data, words_df, user_words_str = context
+        uilang = user_data['ui_language']
 
         message_template = self.templates.get_template(uilang, lang, 'gen_words')
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
@@ -298,10 +290,36 @@ class LearningPlan:
                                                     response_format=response_format, validation_cls=validation_cls)
             words = assistant_response.deck_words
 
-            new_words = [word for word in words if words_df[(words_df['word'] == word) & (words_df['lang'] == lang)].shape[0] == 0]
+            new_words = await asyncio.to_thread(self._find_new_words, words_df, words, lang)
             if len(new_words) >= 15:
                 break
 
+        await asyncio.to_thread(self._add_generated_words, chat_id, lang, new_words)
+
+    def _get_add_words_context(self, chat_id, lang):
+        user_data = self.user_config.get_user_data(chat_id)
+        words_df = self.words_db.get_words_df()
+
+        if words_df.shape[0] == 0:
+            return None
+
+        progress_df = self.progress_db.get_progress_df()
+        progress_words_df = pd.merge(progress_df, words_df, how='outer', left_on='word_id',
+                                     right_on='id', sort=False)
+        not_ignored_words = progress_words_df.loc[(progress_words_df['lang'] == lang.lower()) & (progress_words_df['chat_id'] == chat_id) &
+                                                  progress_words_df['to_ignore'].isin([False, np.nan])]
+
+        if not_ignored_words.shape[0] > 0:
+            user_words_str = ', '.join(not_ignored_words['word'].to_list())
+        else:
+            user_words_str = 'No words learned yet.'
+
+        return user_data, words_df, user_words_str
+
+    def _find_new_words(self, words_df, words, lang):
+        return [word for word in words if words_df[(words_df['word'] == word) & (words_df['lang'] == lang)].shape[0] == 0]
+
+    def _add_generated_words(self, chat_id, lang, new_words):
         custom_deck_id = self.decks_db.get_custom_deck_id(str(chat_id), lang)
         if custom_deck_id is None:
             custom_deck_id = self.decks_db.add_custom_deck(str(chat_id), lang)

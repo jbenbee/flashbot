@@ -19,23 +19,26 @@ async def get_assistant_response(interface, query, uilang, model_base, model_sub
             ]
     model = model_base
     max_attempts = 3
-    while nattempts < max_attempts:
-        nattempts += 1
-        try:
-            print(f'Sending a request to chatgpt ({model})...')
-            response = await client.chat.completions.create(
-                model=model,
-                messages=messages,
-                response_format=response_format
-            )
-            break
-        except openai.OpenAIError as e:
-            print(e)
-            if nattempts == max_attempts:
-                raise ValueError('The model could not respond in required format') from e
-            await asyncio.sleep(nattempts)
-        if nattempts == max_attempts - 1:
-            model = model_substitute
+    try:
+        while nattempts < max_attempts:
+            nattempts += 1
+            try:
+                print(f'Sending a request to chatgpt ({model})...')
+                response = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    response_format=response_format
+                )
+                break
+            except openai.OpenAIError as e:
+                print(e)
+                if nattempts == max_attempts:
+                    raise ValueError('The model could not respond in required format') from e
+                await asyncio.sleep(nattempts)
+            if nattempts == max_attempts - 1:
+                model = model_substitute
+    finally:
+        await client.close()
     print('Done.')
 
     if response.choices[0].message.refusal:
@@ -80,26 +83,27 @@ async def get_audio(query, lang, file_path):
 
     openai_key = os.getenv('OPENAI_KEY')
     if openai_key is None:
-        with open(Path('api_keys/openai_api.txt'), 'r') as fp:
-                lines = fp.readlines()
-                openai_key = lines[0].strip()
+        key_file = await asyncio.to_thread(Path('api_keys/openai_api.txt').read_text)
+        openai_key = key_file.splitlines()[0].strip()
     client = openai.AsyncOpenAI(api_key=openai_key, timeout=20.0, max_retries=0)
 
-    completion = await client.chat.completions.create(
-        model="gpt-4o-audio-preview",
-        modalities=["text", "audio"],
-        audio={"voice": "alloy", "format": "wav"},
-        messages=[
-            {
-                "role": "user",
-                "content": f'Pronounce this phrase {lang}: {query}'
-            }
-        ]
-    )
+    try:
+        completion = await client.chat.completions.create(
+            model="gpt-4o-audio-preview",
+            modalities=["text", "audio"],
+            audio={"voice": "alloy", "format": "wav"},
+            messages=[
+                {
+                    "role": "user",
+                    "content": f'Pronounce this phrase {lang}: {query}'
+                }
+            ]
+        )
+    finally:
+        await client.close()
 
-    wav_bytes = base64.b64decode(completion.choices[0].message.audio.data)
-    with open(file_path, "wb") as f:
-        f.write(wav_bytes)
+    wav_bytes = await asyncio.to_thread(base64.b64decode, completion.choices[0].message.audio.data)
+    await asyncio.to_thread(Path(file_path).write_bytes, wav_bytes)
 
 async def download_file(client, aurl, fpath):
     headers = {
@@ -114,9 +118,12 @@ async def download_file(client, aurl, fpath):
     async with client.stream("GET", aurl, headers=headers) as r:
         r.raise_for_status()
 
-        with open(fpath, "wb") as f:
-            async for chunk in r.aiter_bytes(8192):
-                f.write(chunk)
+        file = await asyncio.to_thread(open, fpath, "wb")
+        try:
+            async for chunk in r.aiter_bytes(1024 * 1024):
+                await asyncio.to_thread(file.write, chunk)
+        finally:
+            await asyncio.to_thread(file.close)
 
 async def generate_song_of_the_day(prompt, dirpath):
     print(f'Generating song of the day')

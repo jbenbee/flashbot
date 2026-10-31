@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 import jinja2
 from flask import Flask
 
-from telegram import Update
+from telegram import InputFile, Update
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, CallbackQueryHandler, ContextTypes
 import telegramify_markdown
 
@@ -114,18 +114,18 @@ async def notify_user_is_busy(update, context, chat_id):
 
 async def handle_new_exercise(bot, chat_id, exercise):
     try:
-        user_data = user_config.get_user_data(chat_id)
+        user_data = await asyncio.to_thread(user_config.get_user_data, chat_id)
         lang = user_data['language']
         uilang = lang_map[bot.token]
 
         running_activities.add_activity(chat_id, exercise)
         if isinstance(exercise, WordsExerciseLearn):
-            lp.process_response(chat_id, exercise, quality=None)
-            words_progress_db.save_progress()
+            await asyncio.to_thread(lp.process_response, chat_id, exercise, quality=None)
+            await asyncio.to_thread(words_progress_db.save_progress)
 
         try:
             if not isinstance(exercise, WordsExerciseLearn) and "show_words_due" in user_data.keys() and user_data['show_words_due']:
-                words_due = lp.get_due_today(chat_id, lang)
+                words_due = await asyncio.to_thread(lp.get_due_today, chat_id, lang)
 
                 message_template = templates.get_template(uilang, lang, 'words_due')
                 template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
@@ -195,12 +195,14 @@ async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
 
 
 async def tel_send_audio(bot, chat_id, audio_file_path, title='audio.mp3'):
-    with open(audio_file_path, 'rb') as audio_file:
-        await bot.send_audio(chat_id=chat_id, audio=audio_file, title=title, parse_mode='HTML')
+    path = Path(audio_file_path)
+    audio_data = await asyncio.to_thread(path.read_bytes)
+    await bot.send_audio(chat_id=chat_id, audio=InputFile(audio_data, filename=path.name), title=title, parse_mode='HTML')
 
 async def tel_send_image(bot, chat_id, image_file_path, caption):
-    with open(image_file_path, 'rb') as img_file:
-        await bot.send_photo(chat_id=chat_id, photo=img_file, caption=caption, parse_mode='HTML')
+    path = Path(image_file_path)
+    image_data = await asyncio.to_thread(path.read_bytes)
+    await bot.send_photo(chat_id=chat_id, photo=InputFile(image_data, filename=path.name), caption=caption, parse_mode='HTML')
 
 async def tel_send_message(bot, chat_id, text, buttons=None, parse_mode="MarkdownV2"):
 
@@ -268,7 +270,8 @@ async def handle_next_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
     bot = context._application.bot
     uilang = lang_map[bot.token]
-    lang = user_config.get_user_data(chat_id)['language']
+    user_data = await asyncio.to_thread(user_config.get_user_data, chat_id)
+    lang = user_data['language']
 
     await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
     exercise = await lp.get_next_words_exercise(chat_id, lang, mode='test')
@@ -283,7 +286,8 @@ async def handle_next_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
     bot = context._application.bot
     uilang = lang_map[bot.token]
-    lang = user_config.get_user_data(chat_id)['language']
+    user_data = await asyncio.to_thread(user_config.get_user_data, chat_id)
+    lang = user_data['language']
 
     await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
     exercise = await lp.get_next_words_exercise(chat_id, lang, mode='learn')
@@ -298,7 +302,7 @@ async def handle_song_of_the_day(update: Update, context: ContextTypes.DEFAULT_T
     chat_id = update.message.chat_id
     bot = context._application.bot
     uilang = lang_map[bot.token]
-    user_data = user_config.get_user_data(chat_id)
+    user_data = await asyncio.to_thread(user_config.get_user_data, chat_id)
     lang = user_data['language']
 
     # the song of the day can only be generated once per day (based on the user's local date)
@@ -325,7 +329,7 @@ async def handle_song_of_the_day(update: Update, context: ContextTypes.DEFAULT_T
         genres_sub = random.sample(genres, min(5, len(genres))) if genres else []
 
         # sample 5 words that the user is currently learning
-        learning_words = lp.get_due_today(chat_id, lang) or []
+        learning_words = await asyncio.to_thread(lp.get_due_today, chat_id, lang) or []
         n_sample = min(5, len(learning_words))
         sampled_words = random.sample(learning_words, n_sample) if n_sample > 0 else []
 
@@ -356,7 +360,7 @@ async def handle_song_of_the_day(update: Update, context: ContextTypes.DEFAULT_T
             await tel_send_audio(bot, chat_id, song_data['audio_data'][1]['audio_file_path'], title=song_data['title'] + ' (2)')
 
 
-        user_config.set_user_field(chat_id, 'last_song_of_the_day_date', today.isoformat())
+        await asyncio.to_thread(user_config.set_user_field, chat_id, 'last_song_of_the_day_date', today.isoformat())
     finally:
         release_song_slot()
 
@@ -370,8 +374,8 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
 
         if isinstance(exercise, WordsExerciseLearn) or isinstance(exercise, WordsExerciseTest) or isinstance(exercise, FlashcardExercise):
             if f'Discard' == udata:
-                words_progress_db.ignore_word(chat_id, exercise.word_id)
-                words_progress_db.save_progress()
+                await asyncio.to_thread(words_progress_db.ignore_word, chat_id, exercise.word_id)
+                await asyncio.to_thread(words_progress_db.save_progress)
 
                 message_template = templates.get_template(uilang, lang, 'word_ignore_message')
                 template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
@@ -385,8 +389,8 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                 running_activities.add_activity(chat_id, running_exercise)
 
                 if not exercise.is_responded:
-                    lp.process_hint(chat_id, running_exercise)
-                    words_progress_db.save_progress()
+                    await asyncio.to_thread(lp.process_hint, chat_id, running_exercise)
+                    await asyncio.to_thread(words_progress_db.save_progress)
 
                 message_template = templates.get_template(uilang, lang, 'hint_message')
                 template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
@@ -399,8 +403,8 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
                 running_exercise.correct_answer_clicked = True
                 running_activities.add_activity(chat_id, running_exercise)
                 if not exercise.is_responded:
-                    lp.process_correct_answer(chat_id, running_exercise)
-                    words_progress_db.save_progress()
+                    await asyncio.to_thread(lp.process_correct_answer, chat_id, running_exercise)
+                    await asyncio.to_thread(words_progress_db.save_progress)
 
                 await tel_send_message(bot, chat_id, exercise.correct_answer())
             # elif f'I know this word' == udata:
@@ -424,14 +428,18 @@ async def handle_exercise_button_press(update, context, chat_id, lang, udata, ex
 
             elif f'Answer audio' == udata:
                 file_path = f'{chat_id}_{exercise.uid}.mp3'
-                await get_audio(exercise.correct_answer(), exercise.lang, file_path)
-                await tel_send_audio(bot, chat_id, file_path)
-                os.remove(file_path)
+                try:
+                    await get_audio(exercise.correct_answer(), exercise.lang, file_path)
+                    await tel_send_audio(bot, chat_id, file_path)
+                finally:
+                    await asyncio.to_thread(Path(file_path).unlink, missing_ok=True)
             elif f'Pronounce' == udata:
                 file_path = f'{chat_id}_{exercise.uid}.mp3'
-                await get_audio(exercise.word, exercise.lang, file_path)
-                await tel_send_audio(bot, chat_id, file_path)
-                os.remove(file_path)
+                try:
+                    await get_audio(exercise.word, exercise.lang, file_path)
+                    await tel_send_audio(bot, chat_id, file_path)
+                finally:
+                    await asyncio.to_thread(Path(file_path).unlink, missing_ok=True)
             elif f'Next' == udata:
                 await tel_send_message(bot, chat_id, f'{interface["Thinking"][uilang]}...')
                 mode = 'learn' if isinstance(exercise, WordsExerciseLearn) else 'test'
@@ -503,7 +511,8 @@ async def handle_inline_request(update, context):
         return
 
     try:
-        lang = user_config.get_user_data(chat_id)['language']
+        user_data = await asyncio.to_thread(user_config.get_user_data, chat_id)
+        lang = user_data['language']
 
         data = update.callback_query.data
         button_text = data.split('_')[0]
@@ -544,7 +553,8 @@ async def handle_request(update, context):
         msg = update.message.text
         print(f'{chat_id} message: {msg}')
 
-        lang = user_config.get_user_data(chat_id)['language']
+        user_data = await asyncio.to_thread(user_config.get_user_data, chat_id)
+        lang = user_data['language']
 
         current_activity = running_activities.current_activity(chat_id)
 
@@ -563,13 +573,13 @@ async def handle_request(update, context):
                     # buttons = ['Discard', 'I know this word']
                     buttons = ['Discard']
                 elif isinstance(exercise, WordsExerciseTest) or isinstance(exercise, FlashcardExercise):
-                    lp.process_response(chat_id, exercise, quality=quality)
-                    words_progress_db.save_progress()
+                    await asyncio.to_thread(lp.process_response, chat_id, exercise, quality=quality)
+                    await asyncio.to_thread(words_progress_db.save_progress)
                     # buttons = ['Discard', 'I know this word', 'Next']
                     buttons = ['Discard', 'Next']
 
                 await tel_send_message(bot, chat_id, message, buttons=buttons)
-                words_progress_db.save_progress()
+                await asyncio.to_thread(words_progress_db.save_progress)
             else:
                 await tel_send_message(bot, chat_id, f'{interface["The exercise has already been answered, this message will be ignored"][uilang]}: {msg}')
                 print(f'The exercise has already been answered, this message will be ignored: {msg}')
@@ -577,7 +587,7 @@ async def handle_request(update, context):
         elif current_activity is not None:
             # handle an input for a command
             command = current_activity
-            user_msg = execute_command_message(context, chat_id, lang, command, msg)
+            user_msg = await asyncio.to_thread(execute_command_message, context, chat_id, lang, command, msg)
             await tel_send_message(bot, chat_id, user_msg)
             running_activities.pop_activity(chat_id)
         else:
@@ -594,7 +604,7 @@ async def handle_request(update, context):
 
 
 async def ping_users(context):
-    user_data = user_config.get_all_user_data()
+    user_data = await asyncio.to_thread(user_config.get_all_user_data)
     bot = context._application.bot
     uilang = lang_map[bot.token]
     is_weekend = (datetime.now().weekday() == 5 or datetime.now().weekday() == 6)
@@ -617,13 +627,18 @@ async def ping_users(context):
                 continue
             users_to_ping.append(dict(chat_id=chat_id, lang=user_data[chat_id]['language'], exercise=ping_schedule[0]))
 
-    for user in users_to_ping:
-        try:
-            await ping_user(bot, user['chat_id'], user['lang'], 'words', user['exercise'])
-        except Exception as e:
-            # clean up only the failed user's activities; other users are unaffected
-            if user['chat_id'] in running_activities.chat_ids: running_activities.pop_all(user['chat_id'])
-            print(e)
+    ping_limit = asyncio.Semaphore(CONCURRENT_UPDATES_LIMIT)
+
+    async def send_scheduled_ping(user):
+        async with ping_limit:
+            try:
+                await ping_user(bot, user['chat_id'], user['lang'], 'words', user['exercise'])
+            except Exception as e:
+                # clean up only the failed user's activities; other users are unaffected
+                if user['chat_id'] in running_activities.chat_ids: running_activities.pop_all(user['chat_id'])
+                print(e)
+
+    await asyncio.gather(*(send_scheduled_ping(user) for user in users_to_ping))
 
 
 def nearest_start_time(ping_interval=15 * 60):
@@ -649,10 +664,6 @@ async def run_apps(apps):
     
     def signal_handler(signum, frame):
         print('SIGINT or CTRL-C detected. Exiting gracefully')
-
-        # store running exercises
-        running_activities.backup()
-    
         stop_event.set()
     
     signal.signal(signal.SIGINT, signal_handler)
@@ -687,6 +698,8 @@ async def run_apps(apps):
         for app in apps:
             await app.stop()
             await app.shutdown()
+
+        await asyncio.to_thread(running_activities.backup)
 
 
 if __name__ == '__main__':
