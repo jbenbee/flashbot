@@ -12,7 +12,8 @@ class WordsProgressDB:
         self.db_path = db_path
         if not os.path.exists(self.db_path):
             self.progress_df = pd.DataFrame(columns=['chat_id', 'word_id', 'num_reps', 'e_factor', 'last_interval', 'last_review_date', 'next_review_date', 'to_ignore'])
-        self.progress_df = pd.read_csv(self.db_path)
+        else:
+            self.progress_df = pd.read_csv(self.db_path)
         self.progress_df['last_review_date'] = pd.to_datetime(self.progress_df['last_review_date'])
         self.progress_df['next_review_date'] = pd.to_datetime(self.progress_df['next_review_date']).dt.date
         self.progress_df['word_id'] = self.progress_df['word_id'].astype(int)

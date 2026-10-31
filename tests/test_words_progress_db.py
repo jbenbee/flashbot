@@ -1,9 +1,39 @@
 import threading
+from datetime import datetime, timedelta
 
 import pandas as pd
 import pytest
 
 from conftest import progress_row
+from words_progress_db import WordsProgressDB
+
+
+@pytest.mark.parametrize('reload_empty', [False, True])
+def test_missing_progress_file_supports_updates_and_reload(tmp_path, reload_empty):
+    path = tmp_path / 'new_progress.csv'
+
+    db = WordsProgressDB(path)
+
+    assert db.get_progress_df().empty
+    if reload_empty:
+        db.save_progress()
+        db = WordsProgressDB(path)
+        assert db.get_progress_df().empty
+
+    db.add_word_to_progress(42, 1)
+    item = db.get_word_progress(42, 1)
+    item.num_reps = 1
+    item.last_review_date = datetime.now()
+    item.next_review_date = (item.last_review_date + timedelta(days=1)).date()
+    db.set_word_progress(42, 1, item)
+    db.ignore_word(42, 2)
+    db.save_progress()
+
+    reloaded = WordsProgressDB(path)
+    saved_item = reloaded.get_word_progress(42, 1)
+    assert saved_item.num_reps == 1
+    assert saved_item.next_review_date == item.next_review_date
+    assert reloaded.get_progress_df().query('word_id == 2')['to_ignore'].item()
 
 
 def test_lock_released_after_exception(make_progress_db):

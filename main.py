@@ -485,6 +485,8 @@ def execute_command_message(context, chat_id, lang, command, msg):
     if command == 'add_word':
         words = msg.strip().split('\n')
         custom_deck_id = decks_db.get_custom_deck_id(str(chat_id), lang)
+        if custom_deck_id is None:
+            custom_deck_id = decks_db.add_custom_deck(str(chat_id), lang)
         for word in words:
             word_id = words_db.add_new_word(word, lang)
             decks_db.add_new_word(custom_deck_id, word_id)
@@ -606,14 +608,13 @@ async def ping_users(context):
     user_data = await asyncio.to_thread(user_config.get_all_user_data)
     bot = context._application.bot
     uilang = lang_map[bot.token]
-    is_weekend = (datetime.now().weekday() == 5 or datetime.now().weekday() == 6)
-    schedule_col = 'weekend' if is_weekend else 'weekday'
 
     users_to_ping = []
     for chat_id, v in user_data.items():
         if v['ui_language'] != uilang: continue
 
         user_now = datetime.now(tz=ZoneInfo(user_data[chat_id]["timezone"]))
+        schedule_col = 'weekend' if user_now.weekday() >= 5 else 'weekday'
 
         if 'words' in user_data[chat_id]['exercise_types']:
             ping_schedule = user_data[chat_id]['schedule']['words'][schedule_col]
