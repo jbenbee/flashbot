@@ -1,5 +1,4 @@
 import math
-import os
 import random
 import re
 from typing import List, Optional
@@ -84,8 +83,6 @@ class WordsExerciseLearn(Exercise):
         self.interface = interface
         self.templates = templates
         self.num_reps = num_reps + 1 if not math.isnan(num_reps) else 1
-        self.model_base = os.getenv('MODEL_BASE')
-        self.model_substitute = os.getenv('MODEL_SUBSTITUTE')
         self.is_responded = True
 
     async def get_next_user_message(self, user_response: Optional[str]) -> tuple[str, int]:
@@ -105,8 +102,8 @@ class WordsExerciseLearn(Exercise):
                             }
         }
 
-        assistant_response = await get_assistant_response(self.interface, query, uilang=self.uilang, model_base=self.model_base,
-                                                          model_substitute=self.model_substitute, response_format=response_format, validation_cls=WordExamplesSchema)
+        assistant_response = await get_assistant_response(self.interface, query, uilang=self.uilang,
+                                                          response_format=response_format, validation_cls=WordExamplesSchema)
         
         message_template = self.templates.get_template(self.uilang, self.lang, 'learn_word_user_message')
         # examples = [(entry.example_sentence, entry.sentence_translation) for entry in assistant_response.example_list]
@@ -134,8 +131,6 @@ class WordsExerciseTest(Exercise):
         self.assistant_responses = []
         self.user_messages = []
         self.next_query_idx = 0
-        self.model_base = os.getenv('MODEL_BASE')
-        self.model_substitute = os.getenv('MODEL_SUBSTITUTE')
 
     def correct_answer(self):
         return self.assistant_responses[0][self.difficulty - 1]['answer']
@@ -163,8 +158,7 @@ class WordsExerciseTest(Exercise):
                                 }
             }
 
-            assistant_response = await get_assistant_response(self.interface, query, model_base=self.model_base,
-                                                        model_substitute=self.model_substitute, uilang=self.uilang,
+            assistant_response = await get_assistant_response(self.interface, query, uilang=self.uilang,
                                                         response_format=response_format, validation_cls=validation_cls)
             
             examples = sorted(assistant_response.example_list, key=lambda x: x.difficulty)
@@ -200,8 +194,7 @@ class WordsExerciseTest(Exercise):
                                 }
             }
 
-            assistant_response = await get_assistant_response(self.interface, query, model_base=self.model_base,
-                                                        model_substitute=self.model_substitute, uilang=self.uilang,
+            assistant_response = await get_assistant_response(self.interface, query, uilang=self.uilang,
                                                         response_format=response_format, validation_cls=validation_cls)
             message_template = self.templates.get_template(self.uilang, self.lang, 'test_word_user_message_2')
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
@@ -247,8 +240,6 @@ class FlashcardExercise(Exercise):
         self.assistant_responses = []
         self.user_messages = []
         self.next_query_idx = 0
-        self.model_base = os.getenv('MODEL_BASE')
-        self.model_substitute = os.getenv('MODEL_SUBSTITUTE')
 
     def correct_answer(self):
         return f'{self.word}\n\n{self.interface["Example"][self.uilang]}: {self.assistant_responses[0]["example"]}'
@@ -272,8 +263,7 @@ class FlashcardExercise(Exercise):
                                 }
             }
 
-            assistant_response = await get_assistant_response(self.interface, query, model_base=self.model_base,
-                                                        model_substitute=self.model_substitute, uilang=self.uilang,
+            assistant_response = await get_assistant_response(self.interface, query, uilang=self.uilang,
                                                         response_format=response_format, validation_cls=validation_cls)
             
             self.assistant_responses.append(dict(example=assistant_response.example, translation_example=assistant_response.translation_of_example,
@@ -304,8 +294,7 @@ class FlashcardExercise(Exercise):
                                 }
             }
 
-            assistant_response = await get_assistant_response(self.interface, query, model_base=self.model_base,
-                                                        model_substitute=self.model_substitute, uilang=self.uilang,
+            assistant_response = await get_assistant_response(self.interface, query, uilang=self.uilang,
                                                         response_format=response_format, validation_cls=validation_cls)
             message_template = self.templates.get_template(self.uilang, self.lang, 'flashcard_user_message_2')
             template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)

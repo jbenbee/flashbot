@@ -51,7 +51,7 @@ def text_response(text='answer', *, status='completed'):
 def assistant_response(**kwargs):
     return asyncio.run(utils.get_assistant_response(
         {'You are a great language teacher': {'english': 'Teach'}},
-        'Question', 'english', 'primary', 'substitute', **kwargs))
+        'Question', 'english', model_base='primary', model_fallback='fallback', **kwargs))
 
 
 def test_plain_text_request_uses_responses(mock_openai):

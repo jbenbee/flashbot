@@ -2,7 +2,6 @@ import asyncio
 import math
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-import os
 from typing import Dict, List, Optional
 import jinja2
 import numpy as np
@@ -263,9 +262,6 @@ class LearningPlan:
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         query = template.render(lang=lang, user_words_str=user_words_str)
 
-        model_base = os.getenv('MODEL_BASE')
-        model_substitute = os.getenv('MODEL_SUBSTITUTE')
-
         class NewWordsSchema(BaseModel):
             class Config:
                 extra = 'forbid'
@@ -285,8 +281,7 @@ class LearningPlan:
         }
 
         for i in range(3):
-            assistant_response = await get_assistant_response(self.interface, query, model_base=model_base,
-                                                    model_substitute=model_substitute, uilang=user_data['ui_language'],
+            assistant_response = await get_assistant_response(self.interface, query, uilang=user_data['ui_language'],
                                                     response_format=response_format, validation_cls=validation_cls)
             words = assistant_response.deck_words
 

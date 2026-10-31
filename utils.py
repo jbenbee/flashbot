@@ -1,5 +1,6 @@
 import asyncio
 import base64
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -7,43 +8,46 @@ import random
 import wave
 import httpx
 import openai
+from model_config import load_model_config
 
-async def get_assistant_response(interface, query, uilang, model_base, model_substitute, response_format=None, validation_cls=None):
+async def get_assistant_response(interface, query, uilang, model_base=None, model_fallback=None, response_format=None, validation_cls=None):
     """Generate text through Responses, accepting the callers' existing format specs."""
 
-    text_config = {}
-    if response_format is not None:
-        if response_format['type'] == 'json_schema':
-            text_config['format'] = {'type': 'json_schema', **response_format['json_schema']}
-        else:
-            text_config['format'] = response_format
-
+    config = load_model_config()
+    assistant = config.assistant
     openai_key = os.getenv('OPENAI_KEY')
-    client = openai.AsyncOpenAI(api_key=openai_key, timeout=20.0, max_retries=0)
+    client = openai.AsyncOpenAI(api_key=openai_key, timeout=config.client.timeout_seconds,
+                                max_retries=config.client.max_retries)
 
     nattempts = 0
-    model = model_base
-    max_attempts = 3
+    max_attempts = assistant.max_attempts
     try:
         while nattempts < max_attempts:
             nattempts += 1
+            use_fallback = nattempts == max_attempts and max_attempts > 1
+            model_config = assistant.model_fallback if use_fallback else assistant.model_base
+            model = (model_fallback if use_fallback else model_base) or model_config.model
+            params = deepcopy(model_config.params)
+            text_config = params.setdefault('text', {})
+            if response_format is not None:
+                if response_format['type'] == 'json_schema':
+                    text_config['format'] = {'type': 'json_schema', **response_format['json_schema']}
+                else:
+                    text_config['format'] = response_format
             try:
                 print(f'Sending a request to chatgpt ({model})...')
                 response = await client.responses.create(
                     model=model,
                     instructions=interface["You are a great language teacher"][uilang],
                     input=query,
-                    text=text_config,
-                    store=False,
+                    **params,
                 )
                 break
             except openai.OpenAIError as e:
                 print(e)
                 if nattempts == max_attempts:
                     raise ValueError('The model could not respond in required format') from e
-                await asyncio.sleep(nattempts)
-            if nattempts == max_attempts - 1:
-                model = model_substitute
+                await asyncio.sleep(assistant.retry_delay_seconds * nattempts)
     finally:
         await client.close()
     print('Done.')
@@ -96,32 +100,23 @@ async def get_weather_forecast(tz):
 async def get_audio(query, lang, file_path):
     """Read the supplied text aloud with Realtime and save a PCM WAV file."""
 
+    config = load_model_config()
+    speech = config.speech
+    session = deepcopy(speech.session)
+    session['instructions'] = session['instructions'].replace('{lang}', lang)
     openai_key = os.getenv('OPENAI_KEY')
     if openai_key is None:
         key_file = await asyncio.to_thread(Path('api_keys/openai_api.txt').read_text)
         openai_key = key_file.splitlines()[0].strip()
-    client = openai.AsyncOpenAI(api_key=openai_key, timeout=20.0, max_retries=0)
+    client = openai.AsyncOpenAI(api_key=openai_key, timeout=config.client.timeout_seconds,
+                                max_retries=config.client.max_retries)
 
     audio_chunks = []
     try:
         # HTTP timeouts do not bound a WebSocket session's event stream.
-        async with asyncio.timeout(20.0):
-            async with client.realtime.connect(model='gpt-realtime-2.1-mini') as connection:
-                await connection.session.update(session={
-                    'type': 'realtime',
-                    'output_modalities': ['audio'],
-                    'instructions': (
-                        f"Read the user's text aloud exactly as written in {lang}. "
-                        'Do not translate, answer, or add commentary.'
-                    ),
-                    'audio': {
-                        'input': {'turn_detection': None},
-                        'output': {
-                            'voice': 'alloy',
-                            'format': {'type': 'audio/pcm', 'rate': 24000},
-                        },
-                    },
-                })
+        async with asyncio.timeout(speech.timeout_seconds):
+            async with client.realtime.connect(model=speech.model) as connection:
+                await connection.session.update(session=session)
                 await connection.conversation.item.create(item={
                     'type': 'message',
                     'role': 'user',
@@ -178,15 +173,14 @@ async def download_file(client, aurl, fpath):
 
 async def generate_song_of_the_day(prompt, dirpath):
     print(f'Generating song of the day')
+    song = load_model_config().song
     BASE_URL = "https://api.sunoapi.org"
     url = f"{BASE_URL}/api/v1/generate"
 
     payload = {
-        "customMode": False,
-        "model": "V4_5",
+        **deepcopy(song.params),
+        "model": song.model,
         "prompt": prompt,
-        "instrumental": False,
-        "callBackUrl": "test.url"
     }
     suno_api_key = os.getenv('SUNO_API_KEY')
     headers = {
@@ -194,7 +188,7 @@ async def generate_song_of_the_day(prompt, dirpath):
         "Content-Type": "application/json"
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=song.timeout_seconds) as client:
         response = await client.post(url, json=payload, headers=headers)
         response.raise_for_status()
         task_id = response.json()['data']["taskId"]
@@ -227,9 +221,9 @@ async def generate_song_of_the_day(prompt, dirpath):
                 return data
             elif status == "PENDING" or 'SUCCESS' in status:
                 print("Still generating...")
-                await asyncio.sleep(5 * n_iter)
+                await asyncio.sleep(song.poll_interval_seconds * n_iter)
                 n_iter += 1
-                if n_iter > 20:
+                if n_iter > song.max_poll_attempts:
                     raise Exception('Song generation took too long.')
             elif "FAIL" in status:
                 raise Exception(status)

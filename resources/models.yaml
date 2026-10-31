@@ -1,0 +1,46 @@
+# Restart the bot after changing model settings. API keys stay in the environment.
+client:
+  timeout_seconds: 20.0
+  max_retries: 0
+
+assistant:
+  model_base:
+    model: gpt-6-sol
+    params:
+      store: false
+  model_fallback:
+    model: gpt-6-luna
+    params:
+      store: false
+  # The final attempt uses model_fallback; earlier attempts use model_base.
+  max_attempts: 3
+  retry_delay_seconds: 1.0
+
+speech:
+  model: gpt-realtime-2.1-mini
+  timeout_seconds: 20.0
+  session:
+    type: realtime
+    output_modalities: [audio]
+    instructions: >-
+      Read the user's text aloud exactly as written in {lang}.
+      Do not translate, answer, or add commentary.
+    audio:
+      input:
+        turn_detection: null
+      output:
+        voice: alloy
+        # The WAV writer requires 24 kHz, mono, 16-bit PCM output.
+        format:
+          type: audio/pcm
+          rate: 24000
+
+song:
+  model: V4_5
+  params:
+    customMode: false
+    instrumental: false
+    callBackUrl: test.url
+  timeout_seconds: 30.0
+  poll_interval_seconds: 5.0
+  max_poll_attempts: 20

@@ -18,6 +18,7 @@ import telegramify_markdown
 from decks_db import DecksDB
 from exercise import Exercise
 from learning_plan import LearningPlan
+from model_config import load_model_config
 from templates import Templates
 from utils import get_audio, generate_song_of_the_day, get_assistant_response, get_weather_forecast
 from words_progress_db import WordsProgressDB
@@ -31,6 +32,7 @@ from tempfile import TemporaryDirectory
 import logging
 
 dotenv.load_dotenv()
+load_model_config()
 
 # Disable optional logging
 logging.getLogger('httpx').setLevel(logging.WARNING)
@@ -342,10 +344,7 @@ async def handle_song_of_the_day(update: Update, context: ContextTypes.DEFAULT_T
         template = jinja2.Template(message_template, undefined=jinja2.StrictUndefined)
         query = template.render(lang=interface[lang][uilang], words_str=', '.join(sampled_words), genres=', '.join(genres_sub), weather=weather, local_time=local_time)
 
-        model_base = os.getenv('MODEL_BASE')
-        model_substitute = os.getenv('MODEL_SUBSTITUTE')
-        llm_prompt = await get_assistant_response(interface, query, uilang=uilang,
-                                                  model_base=model_base, model_substitute=model_substitute)
+        llm_prompt = await get_assistant_response(interface, query, uilang=uilang)
 
         prompt = f"{llm_prompt}\n{genre_prompt}"
 

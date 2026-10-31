@@ -12,6 +12,7 @@ from websockets.frames import Close
 
 import openai.lib._websocket as websocket_transport
 import utils
+from model_config import load_model_config
 
 
 @pytest.fixture
@@ -115,6 +116,22 @@ def test_realtime_audio_chunks_are_saved_as_wav(mock_realtime, tmp_path):
                  'content': [{'type': 'input_text', 'text': 'ciao'}]},
     }
     assert response == {'type': 'response.create'}
+
+
+def test_speech_model_and_session_are_read_from_config(mock_realtime, tmp_path, monkeypatch):
+    config = load_model_config().model_copy(deep=True)
+    config.speech.model = 'configured-speech'
+    config.speech.session['audio']['output']['voice'] = 'coral'
+    state = mock_realtime([audio_delta(b'\x01\x00'), response_done()])
+    monkeypatch.setattr(utils, 'load_model_config', lambda: config)
+
+    asyncio.run(utils.get_audio('ciao', 'Italian', tmp_path / 'pronunciation.wav'))
+
+    assert parse_qs(urlparse(state.urls[0]).query) == {'model': ['configured-speech']}
+    session = state.sent[0]['session']
+    assert session['audio']['output']['voice'] == 'coral'
+    assert 'Italian' in session['instructions']
+    assert '{lang}' in config.speech.session['instructions']
 
 
 @pytest.mark.parametrize('status', ['failed', 'incomplete', 'cancelled'])

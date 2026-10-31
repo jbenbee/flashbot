@@ -13,5 +13,6 @@ rouge_score
 Jinja2
 python-telegram-bot[ext]
 pydantic
+PyYAML>=6.0
 telegramify-markdown
 python-dotenv
