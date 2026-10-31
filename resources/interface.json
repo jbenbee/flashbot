@@ -1,4 +1,8 @@
 {
+  "You are not authorized to use this bot": {
+    "english": "You are not authorized to use this bot.",
+    "russian": "У вас нет доступа к этому боту."
+  },
   "Discard": {
     "russian": "Забыть",
     "english": "Discard"

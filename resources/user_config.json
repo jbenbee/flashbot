@@ -1,5 +1,6 @@
 {
     "<user 1 chat id>": {
+    "enabled": true,
     "ui_language": "spanish",
     "language": "italian",
     "timezone": "Europe/Berlin",
@@ -15,6 +16,7 @@
     }
   },
   "<user 2 chat id>": {
+    "enabled": true,
     "language": "spanish",
     "ui_language": "english",
     "timezone": "America/Los_Angeles",

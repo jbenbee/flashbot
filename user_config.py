@@ -40,6 +40,13 @@ class UserConfig:
         with self._lock:
             return list(self._user_data.keys())
 
+    def is_user_allowed(self, user_id):
+        """Only configured private-chat users are allowed; entries can be disabled."""
+        with self._lock:
+            data = self._user_data.get(user_id)
+            return (user_id is not None and user_id > 0 and data is not None
+                    and data.get('enabled', False) is True)
+
     def get_user_data(self, chat_id):
         with self._lock:
             return copy.deepcopy(self._user_data[chat_id])

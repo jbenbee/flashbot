@@ -401,12 +401,12 @@ class OfflineBot(ExtBot):
         return 'flashbot_test'
 
 
-def interaction_update(bot, kind, *, username='alice', action='Next'):
+def interaction_update(bot, kind, *, username='alice', action='Next', chat_id=123):
     user = {'id': 321, 'is_bot': False, 'first_name': 'Private name'}
     if username is not None:
         user['username'] = username
     message = {'message_id': 10, 'date': 1793440800,
-               'chat': {'id': 123, 'type': 'private'}, 'from': user}
+               'chat': {'id': chat_id, 'type': 'private'}, 'from': user}
     if kind == 'button':
         message['text'] = 'private-exercise-prompt'
         payload = {'callback_query': {'id': 'callback-1', 'from': user,
@@ -434,6 +434,8 @@ def test_dispatcher_logs_all_interactions_before_busy_checks(log_dir, monkeypatc
     # Business handlers must reject these requests without losing the audit event.
     monkeypatch.setattr(main, 'busy_users', {123, 321})
     monkeypatch.setattr(main, 'lang_map', {application.bot.token: 'english'}, raising=False)
+    monkeypatch.setattr(main, 'user_config', SimpleNamespace(
+        is_user_allowed=lambda user_id: user_id == 321), raising=False)
     notifications = []
 
     async def busy_notification(update, context, chat_id):
@@ -441,7 +443,7 @@ def test_dispatcher_logs_all_interactions_before_busy_checks(log_dir, monkeypatc
         notifications.append(chat_id)
 
     monkeypatch.setattr(main, 'notify_user_is_busy', busy_notification)
-    update = interaction_update(application.bot, kind)
+    update = interaction_update(application.bot, kind, chat_id=321)
 
     async def run():
         async with application:
@@ -454,7 +456,7 @@ def test_dispatcher_logs_all_interactions_before_busy_checks(log_dir, monkeypatc
     entry = interactions[0]
     assert entry['user_id'] == '321'
     assert entry['username'] == 'alice'
-    assert entry['chat_id'] == '123'
+    assert entry['chat_id'] == '321'
     assert entry['update_id'] == '777'
     assert entry['timestamp'].endswith('Z')
     assert entry['level'] == 'INFO'
@@ -469,7 +471,7 @@ def test_dispatcher_logs_all_interactions_before_busy_checks(log_dir, monkeypatc
     else:
         assert entry['kind'] == 'chat_message'
         assert entry['message_type'] == ('photo' if kind == 'photo' else 'text')
-    assert notifications == ([321] if kind == 'button' else [123] if kind in {'command', 'chat_message'} else [])
+    assert notifications == ([321] if kind in {'button', 'command', 'chat_message'} else [])
     assert 'private-' not in path.read_text()
     assert 'Private name' not in path.read_text()
 
@@ -482,6 +484,7 @@ def test_expired_button_is_logged_with_sender_even_without_username(log_dir, mon
     monkeypatch.setattr(main, 'busy_users', set())
     monkeypatch.setattr(main, 'lang_map', {application.bot.token: 'english'}, raising=False)
     monkeypatch.setattr(main, 'user_config', SimpleNamespace(
+        is_user_allowed=lambda user_id: user_id == 321,
         get_user_data=lambda chat_id: {'language': 'english'}), raising=False)
     monkeypatch.setattr(main, 'running_activities', running_activities, raising=False)
     monkeypatch.setattr(main, 'exercise_buttons', ['Next'], raising=False)
@@ -493,7 +496,7 @@ def test_expired_button_is_logged_with_sender_even_without_username(log_dir, mon
 
     async def run():
         async with application:
-            await application.process_update(interaction_update(application.bot, 'button', username=None))
+            await application.process_update(interaction_update(application.bot, 'button', username=None, chat_id=321))
 
     asyncio.run(run())
 
@@ -502,7 +505,7 @@ def test_expired_button_is_logged_with_sender_even_without_username(log_dir, mon
     assert entry['kind'] == 'button'
     assert entry['user_id'] == '321'
     assert entry['username'] == ''
-    assert entry['chat_id'] == '123'
+    assert entry['chat_id'] == '321'
     assert entry['action'] == 'Next'
     assert 'Button ignored reason=exercise_expired chat_id=321' in output
     send.assert_awaited_once_with(application.bot, 321, 'expired')

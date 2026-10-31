@@ -12,7 +12,7 @@ import jinja2
 from flask import Flask
 
 from telegram import InputFile, Update
-from telegram.ext import Application, MessageHandler, filters, CommandHandler, CallbackQueryHandler, ContextTypes, TypeHandler
+from telegram.ext import Application, ApplicationHandlerStop, MessageHandler, filters, CommandHandler, CallbackQueryHandler, ContextTypes, TypeHandler
 import telegramify_markdown
 
 from decks_db import DecksDB
@@ -173,6 +173,10 @@ async def handle_new_exercise(bot, chat_id, exercise):
 
 
 async def ping_user(bot, chat_id, lang, exercise_type, exercise_data):
+    if not await asyncio.to_thread(user_config.is_user_allowed, chat_id):
+        logger.info('Scheduled ping skipped reason=access_denied chat_id=%s', chat_id)
+        return
+
     uilang = lang_map[bot.token]
 
     if not try_acquire_user_slot(chat_id):
@@ -270,10 +274,36 @@ async def log_user_interaction(update: Update, context: ContextTypes.DEFAULT_TYP
     })
 
 
+async def check_access(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Stop unauthorized updates before any business handler or state access."""
+    user = update.effective_user
+    chat = update.effective_chat
+    private_user_chat = (user is not None and chat is not None
+                         and chat.type == 'private' and chat.id == user.id)
+    if private_user_chat and await asyncio.to_thread(user_config.is_user_allowed, user.id):
+        return
+
+    logger.info('Request rejected reason=access_denied user_id=%s chat_id=%s',
+                getattr(user, 'id', None), getattr(chat, 'id', None))
+    try:
+        bot = context.bot
+        uilang = lang_map[bot.token]
+        message = interface['You are not authorized to use this bot'][uilang]
+        if update.callback_query is not None:
+            await update.callback_query.answer(text=message, show_alert=True)
+        elif private_user_chat and update.effective_message is not None:
+            await bot.send_message(chat_id=chat.id, text=message)
+    except Exception:
+        logger.warning('Access denial notification failed', exc_info=True)
+    # Always stop dispatch, even when Telegram cannot deliver the denial.
+    raise ApplicationHandlerStop
+
+
 def register_handlers(application):
     # PTB runs one matching handler per group. A separate earlier group lets this
     # observer run for unknown/unsupported actions without consuming the update.
-    application.add_handler(TypeHandler(Update, log_user_interaction), group=-1)
+    application.add_handler(TypeHandler(Update, log_user_interaction), group=-2)
+    application.add_handler(TypeHandler(Update, check_access, block=True), group=-1)
     application.add_error_handler(handle_application_error)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_request))
     for command in ('add_word', 'next_test', 'next_new', 'song_of_the_day'):
@@ -670,6 +700,7 @@ async def ping_users(context):
 
     users_to_ping = []
     for chat_id, v in user_data.items():
+        if chat_id <= 0 or v.get('enabled', False) is not True: continue
         if v['ui_language'] != uilang: continue
 
         user_now = datetime.now(tz=ZoneInfo(user_data[chat_id]["timezone"]))

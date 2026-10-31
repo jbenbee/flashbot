@@ -8,3 +8,4 @@ api_keys
 personal_files
 .venv/
 .pytest_cache/
+logs/

@@ -35,6 +35,9 @@ def test_scheduled_pings_use_each_users_local_weekday(monkeypatch, utc_now, expe
             }},
         }
 
+    # Disabled entries and group chats are skipped before reading schedules.
+    users[3] = {'enabled': False}
+    users[-4] = {'enabled': True}
     sent = {}
 
     async def record_ping(bot, chat_id, lang, exercise_type, exercise_data):
