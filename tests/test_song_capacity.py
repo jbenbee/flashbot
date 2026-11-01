@@ -127,7 +127,7 @@ def test_song_of_the_day_with_no_genres_completes(monkeypatch):
     prompts = []
     saved = []
 
-    async def fake_weather(_):
+    async def fake_weather(_, *, location=None):
         return 'sunny'
 
     async def fake_assistant(_, query, **kwargs):

@@ -206,14 +206,62 @@ def test_both_prompts_use_one_selected_genre_even_without_due_words(daily_songs,
 
 
 @pytest.mark.parametrize('scheduled', [False, True])
+@pytest.mark.parametrize(('timezone', 'time_of_day'), [
+    ('America/Los_Angeles', 'night'),
+    ('America/New_York', 'morning'),
+    ('Europe/Rome', 'afternoon'),
+    ('Asia/Tokyo', 'evening'),
+])
+def test_song_uses_local_mood_cues_without_exact_timestamp(daily_songs, scheduled, timezone, time_of_day):
+    daily_songs.configure({123: {'timezone': timezone, 'song_of_the_day_time': '00:00'}})
+    if scheduled:
+        asyncio.run(main.send_daily_songs(daily_songs.context))
+    else:
+        asyncio.run(main.handle_song_of_the_day(
+            SimpleNamespace(message=SimpleNamespace(chat_id=123)), daily_songs.context))
+
+    idea_prompt = main.get_assistant_response.await_args.args[1]
+    assert f'time of day: {time_of_day}' in idea_prompt
+    assert 'sunny' in idea_prompt
+    for timestamp_part in ('2026', 'October', 'Saturday', '13:00', '05:00', '08:00', '21:00'):
+        assert timestamp_part not in idea_prompt
+
+
+def test_song_still_generates_without_weather(daily_songs):
+    daily_songs.configure({123: {}})
+    main.get_weather_forecast.return_value = None
+    asyncio.run(main.send_daily_songs(daily_songs.context))
+
+    idea_prompt = main.get_assistant_response.await_args.args[1]
+    assert 'time of day: afternoon' in idea_prompt
+    assert 'weather: None' not in idea_prompt
+    main.generate_song_of_the_day.assert_awaited_once()
+
+
+@pytest.mark.parametrize('scheduled', [False, True])
+def test_song_uses_configured_weather_location(daily_songs, scheduled):
+    daily_songs.configure({123: {'weather_location': 'Bolzano, Italy'}})
+    if scheduled:
+        asyncio.run(main.send_daily_songs(daily_songs.context))
+    else:
+        asyncio.run(main.handle_song_of_the_day(
+            SimpleNamespace(message=SimpleNamespace(chat_id=123)), daily_songs.context))
+
+    main.get_weather_forecast.assert_awaited_once()
+    assert main.get_weather_forecast.await_args.kwargs['location'] == 'Bolzano, Italy'
+
+
+@pytest.mark.parametrize('scheduled', [False, True])
 @pytest.mark.parametrize('words', [[], ['hello', 'world']])
-def test_personal_info_reaches_both_prompts_for_the_correct_user(daily_songs, monkeypatch, scheduled, words):
+def test_personal_info_is_used_only_in_the_idea_step_for_the_correct_user(daily_songs, monkeypatch, scheduled, words):
     personal_info = 'I like cakes.\nI enjoy hiking in the mountains.'
     daily_songs.configure({
         123: {'personal_info': personal_info},
         456: {'personal_info': 'I enjoy sailing.', 'song_of_the_day': False},
     })
     monkeypatch.setattr(main.lp, 'get_due_today', lambda *args: words)
+    song_idea = 'A jazz song about finding joy on a mountain path.'
+    main.get_assistant_response.return_value = song_idea
     if scheduled:
         asyncio.run(main.send_daily_songs(daily_songs.context))
     else:
@@ -223,10 +271,14 @@ def test_personal_info_reaches_both_prompts_for_the_correct_user(daily_songs, mo
     main.generate_song_of_the_day.assert_awaited_once()
     idea_prompt = main.get_assistant_response.await_args.args[1]
     song_prompt = main.generate_song_of_the_day.await_args.kwargs['prompt']
-    for prompt in (idea_prompt, song_prompt):
-        assert 'I like cakes.' in prompt
-        assert 'I enjoy hiking in the mountains.' in prompt
-        assert 'sailing' not in prompt
+    assert 'I like cakes.' in idea_prompt
+    assert 'I enjoy hiking in the mountains.' in idea_prompt
+    assert 'sailing' not in idea_prompt
+    assert song_idea in song_prompt
+    assert 'Listener background:' not in song_prompt
+    assert 'I like cakes.' not in song_prompt
+    assert 'I enjoy hiking in the mountains.' not in song_prompt
+    assert 'sailing' not in song_prompt
     for word in words:
         assert word in idea_prompt
 

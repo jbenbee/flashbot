@@ -437,9 +437,16 @@ async def send_song_of_the_day(bot, chat_id, *, scheduled=False):
         n_sample = min(5, len(learning_words))
         sampled_words = random.sample(learning_words, n_sample) if n_sample > 0 else []
 
-        # get the current time and weather at the user's location to tune the song to them
-        local_time = datetime.now(tz=user_tz).strftime('%A, %d %B %Y, %H:%M')
-        weather = await get_weather_forecast(user_tz)
+        # Supply broad mood cues without dates, clock times, or temperatures.
+        if user_now.hour < 6:
+            local_time = 'night'
+        elif user_now.hour < 12:
+            local_time = 'morning'
+        elif user_now.hour < 18:
+            local_time = 'afternoon'
+        else:
+            local_time = 'evening'
+        weather = await get_weather_forecast(user_tz, location=user_data.get('weather_location'))
         personal_info = (user_data.get('personal_info') or '').strip()
 
         # ask the LLM for a song idea containing all the sampled words
@@ -452,9 +459,8 @@ async def send_song_of_the_day(bot, chat_id, *, scheduled=False):
         # Pass the chosen genre directly to the music generator as well, so the
         # assistant cannot lose the user's preference when describing the idea.
         prompt = f'{llm_prompt}\nThe song must be in the {genre} genre.' if genre else llm_prompt
-        if personal_info:
-            prompt += (f'\nListener background: {json.dumps(personal_info, ensure_ascii=False)}. '
-                       'Use these personal details as inspiration for the theme and lyrics, weaving them in naturally.')
+        prompt += ('\nKeep the lyrics focused on the human story; do not recite calendar dates, clock times, '
+                   'temperatures, or weather reports.')
 
         with TemporaryDirectory() as fp:
             song_data = await generate_song_of_the_day(prompt=prompt, dirpath=Path(fp), style=genre or None)

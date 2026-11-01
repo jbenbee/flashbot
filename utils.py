@@ -1,12 +1,14 @@
 import asyncio
 import base64
 from copy import deepcopy
+from datetime import date, datetime, timedelta, timezone
 import json
 import logging
 import os
 from pathlib import Path
 import random
 import wave
+from urllib.parse import quote
 import httpx
 import openai
 from model_config import load_model_config
@@ -77,28 +79,56 @@ async def get_assistant_response(interface, query, uilang, model_base=None, mode
     return validated_resp
 
 
-async def get_weather_forecast(tz):
-    """Get a short description of the current weather for the city derived from the user's timezone.
+async def get_weather_forecast(tz, *, location=None):
+    """Get a fresh qualitative weather cue for an explicitly configured location.
 
-    Uses the free wttr.in service (no API key required). Returns None if the weather could not be fetched.
+    Returns None when the location is unset or current weather cannot be verified.
     """
+    if not location:
+        logger.info('Weather skipped reason=no_location')
+        return None
     try:
-        city = str(tz).split('/')[-1].replace('_', ' ')
+        city = location.strip()
+        if not city:
+            return None
         async with httpx.AsyncClient(timeout=5) as client:
-            response = await client.get(f'https://wttr.in/{city}?format=j1')
+            response = await client.get(
+                f'https://wttr.in/{quote(city, safe=",")}',
+                params={'format': 'j1', 'lang': 'en'},
+                headers={'Cache-Control': 'no-cache'},
+            )
             response.raise_for_status()
             data = response.json()
 
         current = data['current_condition'][0]
-        today = data['weather'][0]
+        now = datetime.now(tz=tz)
+        now_utc = now.astimezone(timezone.utc)
+        # WWO responses include the full local observation timestamp. Some
+        # wttr.in responses instead supply only the UTC clock and forecast date.
+        if current.get('localObsDateTime'):
+            observed_at = datetime.strptime(current['localObsDateTime'], '%Y-%m-%d %I:%M %p')
+            observed_at = observed_at.replace(tzinfo=tz).astimezone(timezone.utc)
+        else:
+            if date.fromisoformat(data['weather'][0]['date']) != now.date():
+                logger.warning('Weather skipped reason=stale_date location=%s', city)
+                return None
+            observed_time = datetime.strptime(current['observation_time'], '%I:%M %p').time()
+            observed_at = datetime.combine(now_utc.date(), observed_time, tzinfo=timezone.utc)
+            if observed_at > now_utc + timedelta(minutes=15):
+                observed_at -= timedelta(days=1)
 
-        condition = current['weatherDesc'][0]['value']
-        temp = current['temp_C']
-        min_temp = today['mintempC']
-        max_temp = today['maxtempC']
+        age = now_utc - observed_at
+        if not -timedelta(minutes=15) <= age <= timedelta(hours=3):
+            logger.warning('Weather skipped reason=stale_observation location=%s observed_at=%s', city, observed_at)
+            return None
+        condition = current['weatherDesc'][0]['value'].strip()
+        if not condition:
+            return None
 
-        logger.info('Weather forecast fetched')
-        return f'{condition}, {temp}°C (today: {min_temp}-{max_temp}°C)'
+        resolved_area = data.get('nearest_area') or [{}]
+        logger.info('Weather fetched location=%s resolved_area=%s observed_at=%s condition=%s',
+                    city, resolved_area[0].get('areaName'), observed_at, condition)
+        return condition
     except Exception:
         logger.warning('Weather forecast unavailable; continuing without weather', exc_info=True)
         return None
